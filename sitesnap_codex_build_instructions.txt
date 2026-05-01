@@ -1,0 +1,943 @@
+SITE SNAP CODEX BUILD INSTRUCTIONS
+
+Project name: SiteSnap
+Tagline: Your business website, built from your phone.
+
+I want to build a mobile app called SiteSnap.
+
+SiteSnap is a phone-first AI website builder and website manager for local small business owners, especially contractors and blue-collar service businesses.
+
+The goal is simple:
+
+A business owner downloads the app, answers a few simple questions, uploads photos, chooses a domain, previews the site, and launches a professional website from their phone.
+
+This should not feel like Wix, Webflow, Figma, Lovable, Framer, or WordPress. Those tools still require the user to understand website editing, layouts, publishing, domains, and design choices.
+
+SiteSnap should feel like a guided assistant.
+
+The user should not need technical knowledge.
+
+CORE CUSTOMER
+
+Build this for:
+
+Contractors
+Excavation companies
+Demolition companies
+Landscapers
+Roofers
+Plumbers
+HVAC companies
+Painters
+Cleaners
+Concrete companies
+Tree service companies
+Mobile detailers
+Small trucking companies
+Local service businesses
+
+CORE PRODUCT IDEA
+
+The app asks the business owner 10 to 15 simple questions.
+
+The user provides:
+
+Business name
+Business type
+Services offered
+Service areas
+Years in business
+Phone number
+Email
+Business address or service-area only
+Logo, if they have one
+Photos of work
+Reviews, if they have any
+Color preference
+Style preference
+Existing website, if they have one
+Domain preference
+
+Then the app generates:
+
+Homepage
+Services page
+Gallery section
+Reviews section
+About section
+Contact section
+Quote request form
+Click-to-call button
+Service area section
+Basic local SEO text
+Mobile preview
+Desktop preview
+
+After the website is live, the app becomes a dashboard where the owner sees their live website and uses an AI prompt box to make small edits.
+
+Example edit prompts:
+
+Add these new photos to my gallery.
+Change my phone number.
+Add land clearing as a service.
+Update my service area to Naples and Fort Myers.
+Make the website colors darker.
+Add this review to the homepage.
+Change my business hours.
+Add a demolition services page.
+
+IMPORTANT RULE
+
+AI edits should not publish automatically.
+
+Flow:
+
+User asks for change.
+AI prepares the change.
+App shows preview.
+User taps Approve and Publish.
+Live site updates.
+
+BUILD IN PHASES
+
+Do not build the full app all at once.
+
+Build this project in small phases so I do not burn through credits.
+
+Before starting each phase, tell me:
+
+What you are about to build
+Which files you are changing
+Why those files matter
+What I should test after the change
+
+After each phase, stop and wait for my approval before continuing.
+
+KEEP THE FILES ORGANIZED
+
+Keep the project folder clean and easy to understand.
+
+Use clear folder names.
+Avoid dumping everything into one file.
+Use reusable components.
+Use clean naming.
+Add comments only where useful.
+Do not overcomplicate the project.
+
+Suggested structure:
+
+/src
+  /app
+  /components
+  /components/common
+  /components/forms
+  /components/website-preview
+  /components/dashboard
+  /screens
+  /screens/onboarding
+  /screens/preview
+  /screens/dashboard
+  /screens/settings
+  /data
+  /data/industries
+  /data/templates
+  /lib
+  /lib/ai
+  /lib/site-generator
+  /lib/validation
+  /types
+  /utils
+
+/assets
+  /images
+  /icons
+
+/docs
+  product-requirements.md
+  project-roadmap.md
+  phase-log.md
+
+Use a docs folder so the project always has reference files.
+
+Create and maintain these docs:
+
+1. docs/product-requirements.md
+
+Include:
+
+What SiteSnap is
+Target customers
+Core user flow
+Main features
+What makes it different
+MVP scope
+Out-of-scope features for now
+
+2. docs/project-roadmap.md
+
+Include the phased build plan.
+
+3. docs/phase-log.md
+
+Track what was built in each phase, what files changed, and what still needs to be done.
+
+PHASED BUILD PLAN
+
+PHASE 1: PROJECT SETUP AND DOCUMENTATION
+
+Goal:
+Set up the project foundation.
+
+Build:
+
+Clean folder structure
+Basic app shell
+Navigation structure
+Product requirement doc
+Roadmap doc
+Phase log doc
+
+Do not build AI yet.
+Do not build domain publishing yet.
+Do not build payments yet.
+
+PHASE 2: ONBOARDING QUESTIONNAIRE
+
+Goal:
+Let a business owner enter the information needed to build a website.
+
+Build screens for:
+
+Welcome
+Business type selection
+Business info
+Services
+Service areas
+Branding
+Logo upload placeholder
+Photo upload placeholder
+Reviews input placeholder
+Domain preference
+
+Store the user answers in local state first.
+
+No backend yet.
+
+PHASE 3: WEBSITE DATA MODEL
+
+Goal:
+Create a clean structured data model for the generated website.
+
+Build types for:
+
+BusinessProfile
+Service
+ServiceArea
+BrandSettings
+UploadedPhoto
+Review
+GeneratedWebsite
+WebsitePage
+WebsiteSection
+LeadFormSettings
+DomainSettings
+
+Important:
+The AI should eventually update structured data, not raw code.
+
+PHASE 4: TEMPLATE-BASED WEBSITE GENERATOR
+
+Goal:
+Generate a professional website preview from the questionnaire answers.
+
+Build:
+
+Industry templates
+Default service suggestions by industry
+Website generation function
+Clean website preview components
+Mobile preview
+Desktop preview
+
+Important:
+Do not let AI freestyle layouts.
+Use controlled templates and structured sections.
+
+PHASE 5: PREVIEW AND APPROVAL FLOW
+
+Goal:
+Let the user review the generated website before publishing.
+
+Build:
+
+Website preview screen
+Page list
+Generated homepage preview
+Services preview
+Gallery preview
+Contact preview
+Approve button
+Regenerate style placeholder
+Edit info button
+
+Publishing can be mocked for now.
+
+PHASE 6: LIVE DASHBOARD
+
+Goal:
+Create the main dashboard after the mock publish.
+
+Build:
+
+Live website preview card
+Website status
+Domain status
+Visits placeholder
+Calls placeholder
+Quote requests placeholder
+Recent leads placeholder
+Suggested improvements placeholder
+
+PHASE 7: AI EDIT PROMPT UI
+
+Goal:
+Let the user request simple site changes through a prompt box.
+
+Build:
+
+AI edit prompt box
+Example prompt chips
+Change request history
+Mock AI response
+Preview before publish flow
+Approve and publish button
+
+No real AI API yet.
+Use mock logic first.
+
+Example mock edits:
+
+Change phone number
+Add service
+Add service area
+Add review
+Add photo placeholder
+Change colors
+
+PHASE 8: LOCAL LEAD CAPTURE
+
+Goal:
+Create a simple lead system.
+
+Build:
+
+Quote request form structure
+Lead model
+Mock submitted leads
+Leads screen
+Lead detail screen
+Lead status labels
+
+PHASE 9: AI INTEGRATION
+
+Goal:
+Connect the app to an AI provider.
+
+Build:
+
+AI service wrapper
+Structured JSON prompt
+Validation layer
+Safe edit actions
+Error handling
+
+Important:
+The AI must return structured JSON only.
+
+Example action:
+
+{
+  "action": "ADD_SERVICE",
+  "payload": {
+    "title": "Land Clearing",
+    "description": "Professional land clearing for residential and commercial properties.",
+    "cta": "Request a Free Estimate"
+  }
+}
+
+Do not let AI directly modify source code or website template files.
+
+PHASE 10: BACKEND AND STORAGE
+
+Goal:
+Add persistence.
+
+Build:
+
+User accounts
+Business profiles
+Saved websites
+Uploaded photos
+Edit history
+Leads
+Website versions
+
+Use Supabase, Firebase, or another clean backend option.
+
+PHASE 11: PUBLISHING SYSTEM
+
+Goal:
+Publish the generated website.
+
+Build:
+
+Static website rendering from structured JSON
+Hosted website pages
+Public website route
+Domain placeholder
+SSL placeholder
+Publish status
+
+Domain purchasing and DNS can stay mocked until later.
+
+PHASE 12: PAYMENTS AND SUBSCRIPTIONS
+
+Goal:
+Add pricing structure.
+
+Plans:
+
+Free preview
+Starter, $49/month
+Pro, $99/month
+Done-for-you setup, $299 one-time
+
+Do not build payments until the core product works.
+
+PHASE 13: POLISH AND TESTING
+
+Goal:
+Clean up the MVP.
+
+Build:
+
+Empty states
+Loading states
+Error states
+Form validation
+Mobile responsiveness
+Design polish
+Basic unit tests
+Manual testing checklist
+
+ADDITIONAL CODEX INSTRUCTIONS
+
+I want you to follow a strict checklist while building SiteSnap.
+
+Do not rush through the project.
+Do not build large chunks without checking the roadmap first.
+Do not add features only because they sound cool.
+
+Always ask:
+
+Does this help a non-technical small business owner launch, manage, or improve their website from their phone?
+
+If yes, consider it.
+If no, leave it out for now.
+
+CORE RULE
+
+Build one phase at a time.
+
+Before each phase, complete this checklist:
+
+1. Confirm the current phase.
+2. State the goal of the phase.
+3. List the exact files you plan to create or edit.
+4. Explain why each file matters.
+5. Confirm what will not be built in this phase.
+6. Identify possible risks or overbuilt areas.
+7. Give me a short recommendation before coding.
+
+After each phase, complete this checklist:
+
+1. Summarize what was built.
+2. List every file created or edited.
+3. Explain how to run or test the phase.
+4. Confirm whether the phase met its goal.
+5. Point out any weak spots.
+6. Recommend what should be improved later.
+7. Update docs/phase-log.md.
+8. Tell me what the next phase is.
+9. Stop and wait for approval before continuing.
+
+PRODUCT CRITIQUE REQUIREMENT
+
+I want you to critique the product while we build.
+
+Do not agree with every idea.
+
+Be honest when something seems unnecessary, too expensive, too complicated, or bad for the MVP.
+
+When I suggest a feature, respond with:
+
+1. Is this useful for the target user?
+2. Should it be in the MVP, later, or skipped?
+3. Does it increase complexity?
+4. Does it help retention or revenue?
+5. Does it help the user get more leads?
+6. What is the simplest version of the feature?
+7. Final recommendation.
+
+FEATURE DECISION FRAMEWORK
+
+Use this framework for every major feature:
+
+Must-have:
+The app does not work without it.
+
+Should-have:
+Important, but the MVP still works without it.
+
+Later:
+Useful after the app proves demand.
+
+Skip:
+Distracting, too complex, or not valuable enough.
+
+MVP must stay focused on:
+
+Onboarding questionnaire.
+Website generation from structured data.
+Website preview.
+Mock publishing.
+Dashboard.
+AI edit prompt.
+Preview before publishing edits.
+Basic leads.
+Clean documentation.
+
+Do not prioritize:
+
+Advanced CRM.
+Ad campaign management.
+Appointment booking.
+Email marketing.
+AI phone calls.
+Complex analytics.
+Multi-user roles.
+Payment processing.
+Domain purchasing.
+Google Business Profile automation.
+
+Those are later.
+
+AI API AND WEBSITE GENERATION INSTRUCTIONS
+
+For the AI API, assume I will likely use Anthropic Claude as the main AI provider.
+
+The app should be designed so Anthropic Claude can generate website content, service descriptions, local SEO text, and structured edit actions.
+
+However, do not hardcode the app so it only works with Anthropic forever.
+
+Build an AI provider wrapper so we can swap providers later if needed.
+
+Preferred AI setup:
+
+Primary provider:
+Anthropic Claude API.
+
+Possible future providers:
+OpenAI.
+Google Gemini.
+Mistral.
+Groq.
+OpenRouter.
+Custom gateway.
+
+Create the AI integration in a flexible way.
+
+Suggested structure:
+
+/src/lib/ai
+  aiClient.ts
+  /providers
+    anthropicProvider.ts
+    openaiProvider.ts
+    mockProvider.ts
+  /prompts
+    generateWebsitePrompt.ts
+    editWebsitePrompt.ts
+  /schemas
+    websiteGenerationSchema.ts
+    websiteEditSchema.ts
+
+Use the mock provider first.
+
+Do not connect the real Anthropic API until the app flow works with mock data.
+
+AI DEVELOPMENT PHASES
+
+Phase 1 through Phase 8 should use mock data and mock AI.
+
+Do not use paid AI calls early.
+
+This protects credits.
+
+Only start real AI integration after:
+
+Onboarding works.
+Structured data model works.
+Website preview works.
+Mock edit flow works.
+Preview before publish works.
+
+When we add Claude API later, use it for:
+
+Generating website copy.
+Creating service descriptions.
+Writing local SEO text.
+Suggesting service pages.
+Rewriting homepage sections.
+Turning user edit prompts into structured website changes.
+
+Do not use Claude to:
+
+Generate random website layouts.
+Directly edit source code.
+Directly publish live changes.
+Overwrite site structure without approval.
+Make uncontrolled changes to templates.
+
+The AI should return structured JSON only.
+
+Example website generation response:
+
+{
+  "homepage": {
+    "heroTitle": "Reliable Excavation Services in Fort Myers",
+    "heroSubtitle": "Land clearing, grading, demolition, and site prep for residential and commercial projects.",
+    "primaryButtonText": "Request a Free Estimate"
+  },
+  "services": [
+    {
+      "title": "Land Clearing",
+      "description": "Professional land clearing for lots, new builds, driveways, and site preparation."
+    }
+  ],
+  "seo": {
+    "title": "Excavation Company in Fort Myers, FL",
+    "description": "Professional excavation, land clearing, grading, and demolition services in Fort Myers and nearby areas."
+  }
+}
+
+Example edit response:
+
+{
+  "action": "ADD_SERVICE",
+  "payload": {
+    "title": "Drainage Work",
+    "description": "Drainage solutions for properties with standing water, grading issues, or poor runoff.",
+    "cta": "Request a Free Estimate"
+  }
+}
+
+AI SAFETY CHECKLIST
+
+Before applying any AI-generated change:
+
+1. Validate the JSON.
+2. Confirm the action type is allowed.
+3. Check required fields.
+4. Show preview to the user.
+5. Require approval before publishing.
+6. Save edit history.
+7. Allow rollback later.
+
+Allowed AI edit actions for MVP:
+
+ADD_SERVICE
+UPDATE_SERVICE
+REMOVE_SERVICE
+ADD_SERVICE_AREA
+REMOVE_SERVICE_AREA
+UPDATE_PHONE
+UPDATE_EMAIL
+UPDATE_HOURS
+ADD_REVIEW
+REMOVE_REVIEW
+ADD_PHOTO_PLACEHOLDER
+UPDATE_BRAND_COLORS
+UPDATE_HERO_TEXT
+ADD_PROMO_BANNER
+REMOVE_PROMO_BANNER
+CREATE_LOCAL_SEO_PAGE
+
+Do not allow:
+
+DELETE_WEBSITE
+CHANGE_DOMAIN
+PUBLISH_IMMEDIATELY
+DELETE_ALL_CONTENT
+REPLACE_FULL_SITE_WITHOUT_APPROVAL
+EDIT_SOURCE_CODE
+REMOVE_CONTACT_INFO_WITHOUT_CONFIRMATION
+
+AI PROVIDER OPINION REQUIREMENT
+
+When we reach the AI integration phase, give me a direct recommendation on which AI API to use.
+
+Compare:
+
+Anthropic Claude.
+OpenAI.
+Google Gemini.
+OpenRouter or gateway providers.
+
+Judge them based on:
+
+Output quality.
+Structured JSON reliability.
+Cost.
+Speed.
+Ease of integration.
+Long-context ability.
+Safety.
+Reliability.
+Best fit for website copy and structured site generation.
+
+My current preference is Claude Anthropic for the actual website generation.
+
+If you agree, explain why.
+If you disagree, explain why.
+If another provider is better for a specific task, recommend a split setup.
+
+Example:
+
+Claude for website copy and reasoning.
+OpenAI or Gemini for cheaper simple rewrites.
+Mock provider for development.
+Image API later for logos or placeholder images.
+
+INTEGRATION CHECKLIST
+
+Before adding any real third-party integration, complete this checklist:
+
+1. What problem does this integration solve?
+2. Is it needed for MVP?
+3. Is there a mock version we can use first?
+4. What is the monthly cost?
+5. What user data does it touch?
+6. What happens if the integration fails?
+7. Is there a simpler alternative?
+8. Final recommendation: add now, add later, or skip.
+
+Potential integrations to evaluate later:
+
+Anthropic Claude API.
+OpenAI API.
+Google Gemini API.
+Supabase.
+Firebase.
+Clerk.
+Stripe.
+RevenueCat.
+Cloudflare.
+Vercel.
+Netlify.
+Namecheap domain API.
+GoDaddy domain API.
+Google Business Profile API.
+Google Places API.
+Twilio.
+Resend.
+PostHog.
+Sentry.
+
+Do not add integrations without approval.
+
+CREDIT SAVING RULES
+
+Because I want to avoid burning through credits:
+
+Use mock AI first.
+Use mock domain publishing first.
+Use mock analytics first.
+Use mock leads first.
+Use mock payments first.
+Use local state first.
+Only add backend when needed.
+Only add real AI when the flow is working.
+Do not regenerate large files unless necessary.
+Do not rewrite the whole app for small fixes.
+Keep changes small and targeted.
+Explain before making major refactors.
+
+QUALITY CHECKLIST FOR EVERY PHASE
+
+Before marking a phase complete, check:
+
+Does the app still run?
+Are files organized?
+Are components reusable?
+Is the UI simple?
+Is the language non-technical?
+Does this help the target user?
+Did we avoid unnecessary features?
+Did docs get updated?
+Did we stay within the phase scope?
+Is there anything I should test manually?
+
+UI CHECKLIST
+
+Every screen should follow these rules:
+
+Simple headline.
+Short supporting text.
+Clear primary button.
+No clutter.
+Large touch targets.
+Mobile-first layout.
+Plain language.
+No technical terms unless necessary.
+Progress indicator during onboarding.
+Back button where needed.
+Save state where possible.
+Friendly empty states.
+
+WEBSITE PREVIEW CHECKLIST
+
+Generated websites should include:
+
+Clear headline.
+Strong call button.
+Quote request button.
+Service list.
+Service area.
+Trust section.
+Gallery.
+Reviews.
+About section.
+Contact form.
+Footer.
+Mobile view.
+Desktop view.
+Basic SEO data.
+
+Generated websites should avoid:
+
+Generic AI filler.
+Fake claims.
+Fake reviews.
+Fake certifications.
+Overly fancy designs.
+Too much text.
+Stock photo overload.
+Complicated navigation.
+Unclear calls to action.
+
+BUSINESS LOGIC CHECKLIST
+
+When generating a website, always consider:
+
+Business type.
+Services.
+Location.
+Customer trust.
+Lead capture.
+Phone calls.
+Quote requests.
+Photos.
+Reviews.
+Local SEO.
+Simple design.
+
+INDUSTRY-SPECIFIC LOGIC
+
+The app should eventually use industry-specific logic.
+
+Examples:
+
+Excavation:
+Land clearing, grading, drainage, demolition, trenching, septic prep, hauling, site prep.
+
+Landscaping:
+Lawn care, mulch, irrigation, hardscaping, seasonal cleanup, tree trimming.
+
+Roofing:
+Roof repair, replacement, storm damage, inspections, emergency tarping, gutters.
+
+Plumbing:
+Emergency plumbing, drain cleaning, leak repair, water heaters, sewer lines.
+
+HVAC:
+AC repair, installs, maintenance, heating, emergency service.
+
+Cleaning:
+Residential cleaning, commercial cleaning, move-out cleaning, deep cleaning.
+
+Do not build all industries in full depth at once.
+
+Start with a few, then expand.
+
+Recommended first industries:
+
+Excavation and demolition.
+Landscaping.
+Roofing.
+Plumbing.
+Cleaning.
+
+FOUNDER ADVICE REQUIREMENT
+
+Act like a technical builder and product advisor.
+
+When I ask what to build next, give your honest opinion.
+When I suggest something too broad, tell me to narrow it.
+When something should wait, tell me.
+When something is important for revenue, point it out.
+When something improves retention, point it out.
+When something only sounds cool but does not help the user, tell me to skip it.
+
+Always keep the project focused on this main promise:
+
+A local business owner can build, launch, and update a professional website from their phone without technical knowledge.
+
+DEVELOPMENT INSTRUCTIONS
+
+Work one phase at a time.
+
+Keep files organized.
+Use reusable components.
+Update docs after each phase.
+Do not skip documentation.
+Do not build unnecessary features.
+Ask before moving to the next phase.
+Prefer simple, working code over complex architecture.
+Use mock data before real APIs.
+Make the app easy to expand later.
+
+Before writing code for any phase, give me a brief plan.
+
+After writing code for any phase, tell me:
+
+What changed
+Files created or edited
+How to run it
+How to test it
+What the next phase should be
+
+FINAL REMINDER
+
+Build the app as a clickable MVP prototype first.
+
+Focus on the full user experience:
+
+A contractor downloads the app.
+Answers questions.
+Uploads photos.
+Gets a website preview.
+Publishes the site.
+Then later updates it using an AI prompt.
+
+Make it feel simple enough for a 55-year-old contractor who hates technology but wants a better website and more quote requests.
