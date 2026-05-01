@@ -14,6 +14,7 @@ import {
   useWindowDimensions,
   View
 } from "react-native";
+import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 
 import { colors, spacing } from "../../app/theme";
@@ -54,7 +55,10 @@ type StepConfig = {
   shouldShow?: (answers: OnboardingAnswers) => boolean;
 };
 
-const TYPE_INTERVAL_MS = 14;
+const TYPE_INTERVAL_MS = 22;
+// Custom expo easing from ui-ux-pro-max "Modern Dark Cinema Mobile" spec
+const EXPO_EASING = Easing.bezier(0.16, 1, 0.3, 1);
+
 const businessTypes = [
   "Excavation",
   "Landscaping",
@@ -293,11 +297,7 @@ function isStringListAnswer(answer: AnswerValue | undefined): answer is string[]
 
 function getMediaAnswer(answers: OnboardingAnswers, stepId: StepId) {
   const answer = answers[stepId];
-
-  if (isMediaAnswerValue(answer)) {
-    return answer;
-  }
-
+  if (isMediaAnswerValue(answer)) return answer;
   return [];
 }
 
@@ -307,19 +307,12 @@ function getVisibleSteps(answers: OnboardingAnswers) {
 
 function formatAnswer(answer: AnswerValue | undefined) {
   if (isMediaAnswerValue(answer)) {
-    if (answer.length === 0) {
-      return "No files selected";
-    }
-
+    if (answer.length === 0) return "No files selected";
     return answer.length === 1
       ? `${answer[0].fileName ?? "1 image"} selected`
       : `${answer.length} images selected`;
   }
-
-  if (isStringListAnswer(answer)) {
-    return answer.join(", ");
-  }
-
+  if (isStringListAnswer(answer)) return answer.join(", ");
   return answer ?? "";
 }
 
@@ -339,13 +332,15 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
   const [completedSteps, setCompletedSteps] = useState<StepId[]>([]);
   const [editingStepId, setEditingStepId] = useState<StepId | null>(null);
 
+  // Intro animations
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const logoScale = useRef(new Animated.Value(0.94)).current;
   const bridgeOpacity = useRef(new Animated.Value(0)).current;
   const bridgeTranslate = useRef(new Animated.Value(18)).current;
-  const chatOpacity = useRef(new Animated.Value(0)).current;
-  const chatTranslate = useRef(new Animated.Value(18)).current;
-  const scrollRef = useRef<ScrollView | null>(null);
+
+  // Per-step animation (fade + slide)
+  const stepOpacity = useRef(new Animated.Value(0)).current;
+  const stepTranslate = useRef(new Animated.Value(16)).current;
 
   const activeSteps = useMemo(() => getVisibleSteps(answers), [answers]);
   const safeStepIndex = Math.min(stepIndex, activeSteps.length - 1);
@@ -362,19 +357,20 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
   const selectedChoice = typeof currentAnswer === "string" ? currentAnswer : "";
   const selectedMedia = getMediaAnswer(answers, currentStep.id);
 
+  // Logo → bridge intro sequence
   useEffect(() => {
     const sequence = Animated.sequence([
       Animated.parallel([
         Animated.timing(logoOpacity, {
           toValue: 1,
           duration: 520,
-          easing: Easing.out(Easing.ease),
+          easing: EXPO_EASING,
           useNativeDriver: true
         }),
         Animated.timing(logoScale, {
           toValue: 1,
           duration: 520,
-          easing: Easing.out(Easing.ease),
+          easing: EXPO_EASING,
           useNativeDriver: true
         })
       ]),
@@ -388,37 +384,30 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
     ]);
 
     sequence.start(({ finished }) => {
-      if (!finished) {
-        return;
-      }
-
+      if (!finished) return;
       setIntroStage("bridge");
-
       Animated.parallel([
         Animated.timing(bridgeOpacity, {
           toValue: 1,
           duration: 360,
-          easing: Easing.out(Easing.ease),
+          easing: EXPO_EASING,
           useNativeDriver: true
         }),
         Animated.timing(bridgeTranslate, {
           toValue: 0,
           duration: 360,
-          easing: Easing.out(Easing.ease),
+          easing: EXPO_EASING,
           useNativeDriver: true
         })
       ]).start();
     });
 
-    return () => {
-      sequence.stop();
-    };
+    return () => sequence.stop();
   }, [bridgeOpacity, bridgeTranslate, logoOpacity, logoScale]);
 
+  // Typewriter effect on new step
   useEffect(() => {
-    if (introStage !== "chat") {
-      return;
-    }
+    if (introStage !== "chat") return;
 
     let cancelled = false;
     const timers: ReturnType<typeof setTimeout>[] = [];
@@ -427,22 +416,15 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
     setIsTyping(true);
 
     const tick = (index: number) => {
-      if (cancelled) {
-        return;
-      }
-
+      if (cancelled) return;
       setTypedPrompt(currentPrompt.slice(0, index + 1));
-
       if (index + 1 < currentPrompt.length) {
         timers.push(setTimeout(() => tick(index + 1), TYPE_INTERVAL_MS));
         return;
       }
-
       timers.push(
         setTimeout(() => {
-          if (!cancelled) {
-            setIsTyping(false);
-          }
+          if (!cancelled) setIsTyping(false);
         }, 110)
       );
     };
@@ -453,22 +435,36 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
     }
 
     timers.push(setTimeout(() => tick(0), TYPE_INTERVAL_MS));
-
     return () => {
       cancelled = true;
       timers.forEach(clearTimeout);
     };
   }, [currentPrompt, introStage, stepIndex]);
 
+  // Animate step in whenever stepIndex or introStage changes to chat
   useEffect(() => {
-    if (stepIndex !== safeStepIndex) {
-      setStepIndex(safeStepIndex);
-    }
-  }, [safeStepIndex, stepIndex]);
+    if (introStage !== "chat") return;
+    stepOpacity.setValue(0);
+    stepTranslate.setValue(16);
+    Animated.parallel([
+      Animated.timing(stepOpacity, {
+        toValue: 1,
+        duration: 280,
+        easing: EXPO_EASING,
+        useNativeDriver: true
+      }),
+      Animated.timing(stepTranslate, {
+        toValue: 0,
+        duration: 280,
+        easing: EXPO_EASING,
+        useNativeDriver: true
+      })
+    ]).start();
+  }, [stepIndex, introStage, stepOpacity, stepTranslate]);
 
-  const scrollToBottom = (animated: boolean) => {
-    scrollRef.current?.scrollToEnd({ animated });
-  };
+  useEffect(() => {
+    if (stepIndex !== safeStepIndex) setStepIndex(safeStepIndex);
+  }, [safeStepIndex, stepIndex]);
 
   const normalizePickedAssets = (
     assets: ImagePicker.ImagePickerAsset[]
@@ -481,7 +477,27 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
       width: asset.width
     }));
 
+  const animateStepOut = (then: () => void) => {
+    Animated.parallel([
+      Animated.timing(stepOpacity, {
+        toValue: 0,
+        duration: 180,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: true
+      }),
+      Animated.timing(stepTranslate, {
+        toValue: -10,
+        duration: 180,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: true
+      })
+    ]).start(({ finished }) => {
+      if (finished) then();
+    });
+  };
+
   const handleGetStarted = () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Animated.parallel([
       Animated.timing(bridgeOpacity, {
         toValue: 0,
@@ -496,26 +512,8 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
         useNativeDriver: true
       })
     ]).start(({ finished }) => {
-      if (!finished) {
-        return;
-      }
-
+      if (!finished) return;
       setIntroStage("chat");
-
-      Animated.parallel([
-        Animated.timing(chatOpacity, {
-          toValue: 1,
-          duration: 380,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: true
-        }),
-        Animated.timing(chatTranslate, {
-          toValue: 0,
-          duration: 380,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: true
-        })
-      ]).start();
     });
   };
 
@@ -523,17 +521,19 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
     if (editingStepId && !continueEditingFlow) {
       setEditingStepId(null);
       setDraft("");
-      setTimeout(() => setIntroStage("review"), 180);
+      animateStepOut(() => setIntroStage("review"));
       return;
     }
 
     if (safeStepIndex >= activeSteps.length - 1) {
-      setTimeout(() => setIntroStage("review"), 320);
+      animateStepOut(() => setIntroStage("review"));
       return;
     }
 
-    setStepIndex((current) => current + 1);
-    setDraft("");
+    animateStepOut(() => {
+      setStepIndex((current) => current + 1);
+      setDraft("");
+    });
   };
 
   const saveAnswer = (stepId: StepId, value: AnswerValue) => {
@@ -551,22 +551,14 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
         !getTextAnswer(answers, "reviewDetails"));
 
     setAnswers((current) => {
-      const nextAnswers: OnboardingAnswers = {
-        ...current,
-        [stepId]: value
-      };
-
-      if (stepId === "logo" && value !== "Yes, upload it") {
-        delete nextAnswers.logoUpload;
-      }
-
+      const nextAnswers: OnboardingAnswers = { ...current, [stepId]: value };
+      if (stepId === "logo" && value !== "Yes, upload it") delete nextAnswers.logoUpload;
       if (stepId === "photos") {
         const photoSelections = isStringListAnswer(value) ? value : [];
         if (photoSelections.length === 0 || photoSelections.includes("Add later")) {
           delete nextAnswers.photoUpload;
         }
       }
-
       if (
         stepId === "reviews" &&
         value !== "Connect Google Business Profile" &&
@@ -574,7 +566,6 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
       ) {
         delete nextAnswers.reviewDetails;
       }
-
       return nextAnswers;
     });
     setCompletedSteps((current) =>
@@ -585,11 +576,7 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
 
   const startEditingStep = (stepId: StepId) => {
     const targetIndex = activeSteps.findIndex((step) => step.id === stepId);
-
-    if (targetIndex < 0) {
-      return;
-    }
-
+    if (targetIndex < 0) return;
     setEditingStepId(stepId);
     setStepIndex(targetIndex);
     setDraft(getTextAnswer(answers, stepId));
@@ -597,9 +584,9 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
   };
 
   const handleSelectAssetAction = async (action: AssetAction) => {
-    if (isTyping || currentStep.kind !== "asset") {
-      return;
-    }
+    if (isTyping || currentStep.kind !== "asset") return;
+
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     if (action.source === "skip") {
       saveAnswer(currentStep.id, action.value ?? "Add later");
@@ -608,7 +595,6 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
 
     if (action.source === "camera") {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
-
       if (!permission.granted) {
         Alert.alert(
           "Camera access needed",
@@ -633,85 +619,55 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
             quality: 1
           });
 
-    if (pickerResult.canceled) {
-      return;
-    }
+    if (pickerResult.canceled) return;
 
     const pickedAssets = normalizePickedAssets(pickerResult.assets);
-
-    if (pickedAssets.length === 0) {
-      return;
-    }
-
+    if (pickedAssets.length === 0) return;
     saveAnswer(currentStep.id, pickedAssets);
   };
 
   const handleSend = () => {
-    if (introStage !== "chat" || isTyping) {
-      return;
-    }
-
-    if (currentStep.kind !== "text") {
-      return;
-    }
-
-    if (trimmedDraft.length === 0 && currentStep.required !== false) {
-      return;
-    }
-
+    if (introStage !== "chat" || isTyping || currentStep.kind !== "text") return;
+    if (trimmedDraft.length === 0 && currentStep.required !== false) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     saveAnswer(currentStep.id, trimmedDraft.length > 0 ? trimmedDraft : "Add later");
   };
 
   const handleSelectChoice = (option: string) => {
-    if (isTyping || currentStep.kind !== "choice") {
-      return;
-    }
-
+    if (isTyping || currentStep.kind !== "choice") return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     saveAnswer(currentStep.id, option);
   };
 
   const handleToggleMultiChoice = (option: string) => {
-    if (isTyping || currentStep.kind !== "multiChoice") {
-      return;
-    }
-
+    if (isTyping || currentStep.kind !== "multiChoice") return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setAnswers((current) => {
       const existing = current[currentStep.id];
       const currentOptions = isStringListAnswer(existing) ? existing : [];
       const nextOptions = currentOptions.includes(option)
         ? currentOptions.filter((item) => item !== option)
         : [...currentOptions, option];
-
-      return {
-        ...current,
-        [currentStep.id]: nextOptions
-      };
+      return { ...current, [currentStep.id]: nextOptions };
     });
   };
 
   const handleContinueMultiChoice = () => {
-    if (isTyping || currentStep.kind !== "multiChoice" || selectedOptions.length === 0) {
-      return;
-    }
-
+    if (isTyping || currentStep.kind !== "multiChoice" || selectedOptions.length === 0) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setCompletedSteps((current) =>
       current.includes(currentStep.id) ? current : [...current, currentStep.id]
     );
     advanceStep();
   };
 
+  // ─── LOGO SPLASH ────────────────────────────────────────────────────────────
   if (introStage === "logo") {
     return (
       <View style={styles.fullscreen}>
         <BackgroundTexture />
         <Animated.View
-          style={[
-            styles.logoWrap,
-            {
-              opacity: logoOpacity,
-              transform: [{ scale: logoScale }]
-            }
-          ]}
+          style={[styles.logoWrap, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}
         >
           <SiteSnapMark />
         </Animated.View>
@@ -719,6 +675,7 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
     );
   }
 
+  // ─── BRIDGE / LANDING ────────────────────────────────────────────────────────
   if (introStage === "bridge") {
     return (
       <View style={styles.fullscreen}>
@@ -731,18 +688,10 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
           showsVerticalScrollIndicator={false}
           style={[
             styles.introScroll,
-            {
-              opacity: bridgeOpacity,
-              transform: [{ translateY: bridgeTranslate }]
-            }
+            { opacity: bridgeOpacity, transform: [{ translateY: bridgeTranslate }] }
           ]}
         >
-          <View
-            style={[
-              styles.heroIllustrationWrap,
-              isCompactIntro && styles.heroIllustrationWrapCompact
-            ]}
-          >
+          <View style={[styles.heroIllustrationWrap, isCompactIntro && styles.heroIllustrationWrapCompact]}>
             <View style={styles.websiteMock}>
               <View style={styles.mockChrome}>
                 <View style={styles.mockDots}>
@@ -770,7 +719,7 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
           </View>
 
           <View style={styles.introBadge}>
-            <MiniIcon kind="spark" compact />
+            <View style={styles.badgeSparkle} />
             <Text style={styles.introBadgeText}>AI website builder</Text>
           </View>
 
@@ -798,7 +747,7 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
             ]}
           >
             <Text style={styles.getStartedText}>Get Started</Text>
-            <Text style={styles.getStartedArrow}>-&gt;</Text>
+            <Text style={styles.getStartedArrow}>→</Text>
           </Pressable>
 
           <Text style={styles.noCreditText}>No credit card required</Text>
@@ -807,6 +756,7 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
     );
   }
 
+  // ─── REVIEW ──────────────────────────────────────────────────────────────────
   if (introStage === "review") {
     return (
       <View style={styles.fullscreen}>
@@ -831,11 +781,11 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
                   <Text style={styles.reviewLabel}>{onboardingStepLabels[step.id]}</Text>
                   <Pressable
                     accessibilityRole="button"
-                    onPress={() => startEditingStep(step.id)}
-                    style={({ pressed }) => [
-                      styles.editButton,
-                      pressed && styles.editButtonPressed
-                    ]}
+                    onPress={() => {
+                      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      startEditingStep(step.id);
+                    }}
+                    style={({ pressed }) => [styles.editButton, pressed && styles.editButtonPressed]}
                   >
                     <Text style={styles.editButtonText}>Edit</Text>
                   </Pressable>
@@ -863,82 +813,78 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
     );
   }
 
+  // ─── CHAT / STEP VIEW ────────────────────────────────────────────────────────
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior="padding"
+      keyboardVerticalOffset={Platform.OS === "ios" ? 24 : 0}
       style={styles.keyboardWrap}
     >
-      <Animated.View
-        style={[
-          styles.container,
-          {
-            opacity: chatOpacity,
-            transform: [{ translateY: chatTranslate }]
-          }
-        ]}
-      >
+      <View style={styles.chatContainer}>
         <BackgroundTexture />
 
+        {/* Progress bar */}
         <View style={styles.progressShell}>
-          <View style={styles.progressRow}>
+          <View style={styles.progressTrack}>
             {Array.from({ length: totalSteps }).map((_, index) => (
               <View
-                key={`progress-${index + 1}`}
+                key={`seg-${index}`}
                 style={[
                   styles.progressSegment,
-                  index <= safeStepIndex && styles.progressSegmentActive,
+                  index < safeStepIndex && styles.progressSegmentDone,
                   index === safeStepIndex && styles.progressSegmentCurrent
                 ]}
               />
             ))}
           </View>
           <Text style={styles.progressLabel}>
-            Step {safeStepIndex + 1} of {totalSteps}
+            {safeStepIndex + 1} / {totalSteps}
           </Text>
         </View>
 
-        <ScrollView
-          ref={scrollRef}
-          contentContainerStyle={styles.chatContent}
+        {/* Full-screen step content — scrollable so it clears the composer */}
+        <Animated.ScrollView
           keyboardShouldPersistTaps="handled"
-          onContentSizeChange={() => scrollToBottom(true)}
           showsVerticalScrollIndicator={false}
-          style={styles.chatScroll}
+          contentContainerStyle={styles.stepScrollContent}
+          style={[
+            styles.stepView,
+            { opacity: stepOpacity, transform: [{ translateY: stepTranslate }] }
+          ]}
         >
-          {activeSteps.map((step) => {
-            if (!completedSteps.includes(step.id)) {
-              return null;
-            }
-
-            return (
-              <View key={step.id} style={styles.messageGroup}>
-                <AssistantBubble text={step.prompt(answers)} archived />
-                <UserBubble answer={answers[step.id]} />
+          {/* AI avatar + question */}
+          <View style={styles.questionBlock}>
+            <View style={styles.aiAvatarRow}>
+              <View style={styles.aiAvatar}>
+                <View style={styles.aiAvatarGlow} />
+                <View style={styles.sparkleLarge} />
+                <View style={styles.sparkleSmall} />
               </View>
-            );
-          })}
+              <Text style={styles.aiLabel}>SiteSnap AI</Text>
+            </View>
+            <Text style={styles.questionText}>
+              {typedPrompt}
+              {isTyping ? <Text style={styles.typingCursor}>|</Text> : null}
+            </Text>
+          </View>
 
-          <AssistantBubble text={typedPrompt} />
-
-          {(currentStep.kind === "choice" ||
-            currentStep.kind === "multiChoice" ||
-            currentStep.kind === "asset") &&
-          !isTyping ? (
-            <View style={styles.optionStack}>
+          {/* Options */}
+          {!isTyping && (currentStep.kind === "choice" || currentStep.kind === "multiChoice" || currentStep.kind === "asset") && (
+            <ScrollView
+              contentContainerStyle={styles.optionsList}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
               {currentStep.kind === "asset"
                 ? currentStep.assetActions?.map((action) => (
                     <Pressable
                       key={action.label}
                       accessibilityRole="button"
-                      onPress={() => {
-                        void handleSelectAssetAction(action);
-                      }}
-                      style={styles.optionCard}
+                      onPress={() => { void handleSelectAssetAction(action); }}
+                      style={({ pressed }) => [styles.optionCard, pressed && styles.optionCardPressed]}
                     >
-                      <View style={styles.optionLeading}>
-                        <View style={styles.optionIcon} />
-                        <Text style={styles.optionText}>{action.label}</Text>
-                      </View>
+                      <View style={styles.optionDot} />
+                      <Text style={styles.optionText}>{action.label}</Text>
                     </Pressable>
                   ))
                 : currentStep.options?.map((option) => {
@@ -946,7 +892,6 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
                       currentStep.kind === "choice"
                         ? selectedChoice === option
                         : selectedOptions.includes(option);
-
                     return (
                       <Pressable
                         key={option}
@@ -956,72 +901,54 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
                             ? handleSelectChoice(option)
                             : handleToggleMultiChoice(option)
                         }
-                        style={[
-                          styles.optionCard,
-                          selected && styles.optionCardSelected
-                        ]}
+                        style={[styles.optionCard, selected && styles.optionCardSelected]}
                       >
-                        <View style={styles.optionLeading}>
-                          <View
-                            style={[
-                              styles.optionIcon,
-                              selected && styles.optionIconSelected
-                            ]}
-                          />
-                          <Text
-                            style={[
-                              styles.optionText,
-                              selected && styles.optionTextSelected
-                            ]}
-                          >
-                            {option}
-                          </Text>
+                        <View style={[styles.optionDot, selected && styles.optionDotSelected]}>
+                          {selected && <View style={styles.optionDotInner} />}
                         </View>
-                        <View
-                          style={[
-                            styles.optionCheck,
-                            selected && styles.optionCheckSelected
-                          ]}
-                        >
-                          <Text style={styles.optionCheckText}>
-                            {selected ? "OK" : ""}
-                          </Text>
-                        </View>
+                        <Text style={[styles.optionText, selected && styles.optionTextSelected]}>
+                          {option}
+                        </Text>
                       </Pressable>
                     );
-                  })}
+                  })
+              }
 
-              {currentStep.kind === "asset" && selectedMedia.length > 0 ? (
+              {currentStep.kind === "asset" && selectedMedia.length > 0 && (
                 <View style={styles.uploadPreview}>
                   <Text style={styles.uploadPreviewLabel}>
-                    {selectedMedia.length === 1
-                      ? "1 image selected"
-                      : `${selectedMedia.length} images selected`}
+                    {selectedMedia.length === 1 ? "1 image selected" : `${selectedMedia.length} images selected`}
                   </Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     <View style={styles.uploadPreviewRow}>
                       {selectedMedia.map((asset) => (
-                        <Image
-                          key={asset.uri}
-                          source={{ uri: asset.uri }}
-                          style={styles.uploadPreviewImage}
-                        />
+                        <Image key={asset.uri} source={{ uri: asset.uri }} style={styles.uploadPreviewImage} />
                       ))}
                     </View>
                   </ScrollView>
                 </View>
-              ) : null}
-            </View>
-          ) : null}
-        </ScrollView>
+              )}
 
-        <View style={styles.composerDock}>
-          <Text style={styles.composerHint}>{currentStep.hint}</Text>
+              {currentStep.kind === "multiChoice" && (
+                <View style={styles.continueWrap}>
+                  <Button
+                    label="Continue"
+                    onPress={handleContinueMultiChoice}
+                    disabled={isTyping || selectedOptions.length === 0}
+                  />
+                </View>
+              )}
+            </ScrollView>
+          )}
+        </Animated.ScrollView>
 
-          {currentStep.kind === "text" ? (
+        {/* Composer dock — only for text steps */}
+        {currentStep.kind === "text" && (
+          <View style={styles.composerDock}>
+            <Text style={styles.composerHint}>{currentStep.hint}</Text>
             <View style={styles.composerRow}>
               <TextInput
-                autoCapitalize={currentStep.id === "businessName" ? "words" : "words"}
+                autoCapitalize="words"
                 autoCorrect={false}
                 editable={!isTyping}
                 placeholder={currentStep.placeholder}
@@ -1035,143 +962,33 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
               />
               <Pressable
                 accessibilityRole="button"
-                disabled={
-                  isTyping ||
-                  (trimmedDraft.length === 0 && currentStep.required !== false)
-                }
+                disabled={isTyping || (trimmedDraft.length === 0 && currentStep.required !== false)}
                 onPress={handleSend}
                 style={[
                   styles.sendButton,
-                  (isTyping ||
-                    (trimmedDraft.length === 0 && currentStep.required !== false)) &&
+                  (isTyping || (trimmedDraft.length === 0 && currentStep.required !== false)) &&
                     styles.sendButtonDisabled
                 ]}
               >
                 <Text style={styles.sendButtonText}>
-                  {trimmedDraft.length === 0 && currentStep.required === false ? "Skip" : "Go"}
+                  {trimmedDraft.length === 0 && currentStep.required === false ? "Skip" : "→"}
                 </Text>
               </Pressable>
             </View>
-          ) : currentStep.kind === "multiChoice" ? (
-            <View style={styles.choiceFooter}>
-              <Button
-                label="Continue"
-                onPress={handleContinueMultiChoice}
-                disabled={isTyping || selectedOptions.length === 0}
-              />
-            </View>
-          ) : currentStep.kind === "asset" ? (
-            <Text style={styles.choiceInstruction}>
-              Tap an option to collect images in the chat.
-            </Text>
-          ) : (
-            <Text style={styles.choiceInstruction}>Tap an answer to continue.</Text>
-          )}
-        </View>
-      </Animated.View>
+          </View>
+        )}
+
+        {currentStep.kind === "choice" || currentStep.kind === "asset" ? (
+          <View style={styles.tapHintBar}>
+            <Text style={styles.tapHintText}>Tap an answer to continue</Text>
+          </View>
+        ) : null}
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
-function AssistantBubble({
-  archived = false,
-  text
-}: {
-  archived?: boolean;
-  text: string;
-}) {
-  return (
-    <View style={styles.assistantRow}>
-      <View style={[styles.assistantIconWrap, archived && styles.assistantIconWrapArchived]}>
-        <View style={styles.assistantIconGlow} />
-        <View style={styles.sparkleLarge} />
-        <View style={styles.sparkleSmall} />
-      </View>
-      <View style={[styles.assistantBubble, archived && styles.assistantBubbleArchived]}>
-        <Text style={[styles.assistantText, archived && styles.assistantTextArchived]}>
-          {text}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-function UserBubble({ answer }: { answer: AnswerValue | undefined }) {
-  const mediaAssets = isMediaAnswerValue(answer) ? answer : [];
-
-  return (
-    <View style={styles.userRow}>
-      <View style={styles.userBubble}>
-        {mediaAssets.length > 0 ? (
-          <>
-            <Text style={styles.userText}>
-              {mediaAssets.length === 1
-                ? "1 image uploaded"
-                : `${mediaAssets.length} images uploaded`}
-            </Text>
-            <View style={styles.userMediaGrid}>
-              {mediaAssets.map((asset) => (
-                <Image
-                  key={asset.uri}
-                  source={{ uri: asset.uri }}
-                  style={styles.userMediaImage}
-                />
-              ))}
-            </View>
-          </>
-        ) : (
-          <Text style={styles.userText}>{formatAnswer(answer)}</Text>
-        )}
-      </View>
-    </View>
-  );
-}
-
-function MiniIcon({
-  compact = false,
-  kind
-}: {
-  compact?: boolean;
-  kind: "spark" | "bolt" | "phone" | "chart";
-}) {
-  return (
-    <View style={[styles.miniIcon, compact && styles.miniIconCompact]}>
-      {kind === "spark" ? (
-        <>
-          <View style={styles.miniSparkLarge} />
-          <View style={styles.miniSparkSmall} />
-        </>
-      ) : null}
-      {kind === "bolt" ? <Text style={styles.miniIconGlyph}>Z</Text> : null}
-      {kind === "phone" ? <View style={styles.phoneGlyph} /> : null}
-      {kind === "chart" ? (
-        <View style={styles.chartGlyph}>
-          <View style={styles.chartBarSmall} />
-          <View style={styles.chartBarMedium} />
-          <View style={styles.chartBarTall} />
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
-function ValuePillar({
-  body,
-  icon,
-  title
-}: {
-  body: string;
-  icon: "spark" | "bolt" | "chart";
-  title: string;
-}) {
-  return (
-    <View style={styles.valuePillar}>
-      <MiniIcon kind={icon} />
-      <Text style={styles.valueTitle}>{title}</Text>
-      <Text style={styles.valueBody}>{body}</Text>
-    </View>
-  );
-}
+// ─── SUB-COMPONENTS ───────────────────────────────────────────────────────────
 
 function BackgroundTexture() {
   return (
@@ -1179,48 +996,95 @@ function BackgroundTexture() {
       <View style={styles.backgroundBase} />
       <View style={styles.backgroundLineTop} />
       <View style={styles.backgroundLineBottom} />
-      <View style={styles.backgroundGridOne} />
-      <View style={styles.backgroundGridTwo} />
     </>
   );
 }
 
+function ValuePillar({
+  body, icon, title
+}: {
+  body: string;
+  icon: "spark" | "bolt" | "chart";
+  title: string;
+}) {
+  return (
+    <View style={styles.valuePillar}>
+      <View style={styles.miniIcon}>
+        {icon === "spark" && (
+          <>
+            <View style={styles.miniSparkLarge} />
+            <View style={styles.miniSparkSmall} />
+          </>
+        )}
+        {icon === "bolt" && <Text style={styles.miniIconGlyph}>↯</Text>}
+        {icon === "chart" && (
+          <View style={styles.chartGlyph}>
+            <View style={styles.chartBarSmall} />
+            <View style={styles.chartBarMedium} />
+            <View style={styles.chartBarTall} />
+          </View>
+        )}
+      </View>
+      <Text style={styles.valueTitle}>{title}</Text>
+      <Text style={styles.valueBody}>{body}</Text>
+    </View>
+  );
+}
+
+// ─── STYLES ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  keyboardWrap: {
-    flex: 1
-  },
+  // Layout shells
+  keyboardWrap: { flex: 1 },
   fullscreen: {
     backgroundColor: colors.background,
     flex: 1,
-    paddingHorizontal: 18
+    paddingHorizontal: 20
   },
-  container: {
+  chatContainer: {
     backgroundColor: colors.background,
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 8
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16
   },
-  logoWrap: {
-    alignItems: "center",
-    flex: 1,
-    justifyContent: "center"
+
+  // Ambient background
+  backgroundBase: {
+    backgroundColor: colors.background,
+    bottom: 0, left: 0, position: "absolute", right: 0, top: 0
   },
-  introScroll: {
-    flex: 1
+  backgroundLineTop: {
+    backgroundColor: "rgba(200, 255, 61, 0.07)",
+    height: 1,
+    left: 0,
+    position: "absolute",
+    right: 0,
+    top: 56
   },
+  backgroundLineBottom: {
+    backgroundColor: "rgba(125, 255, 178, 0.05)",
+    bottom: 90,
+    height: 1,
+    left: 0,
+    position: "absolute",
+    right: 0
+  },
+
+  // Logo stage
+  logoWrap: { alignItems: "center", flex: 1, justifyContent: "center" },
+
+  // Bridge / landing
+  introScroll: { flex: 1 },
   introScreen: {
     alignItems: "center",
     alignSelf: "stretch",
     flexGrow: 1,
     justifyContent: "center",
-    paddingBottom: 18,
-    paddingTop: 22
+    paddingBottom: 20,
+    paddingTop: 24
   },
-  introScreenCompact: {
-    paddingBottom: 12,
-    paddingTop: 14
-  },
+  introScreenCompact: { paddingBottom: 14, paddingTop: 16 },
   heroIllustrationWrap: {
     alignItems: "center",
     height: 190,
@@ -1228,10 +1092,7 @@ const styles = StyleSheet.create({
     marginBottom: 22,
     width: "100%"
   },
-  heroIllustrationWrapCompact: {
-    height: 160,
-    marginBottom: 14
-  },
+  heroIllustrationWrapCompact: { height: 160, marginBottom: 14 },
   websiteMock: {
     backgroundColor: "rgba(14, 19, 15, 0.96)",
     borderColor: "rgba(200, 255, 61, 0.42)",
@@ -1253,21 +1114,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 12
   },
-  mockDots: {
-    flexDirection: "row",
-    gap: 5
-  },
+  mockDots: { flexDirection: "row", gap: 5 },
   mockDot: {
     backgroundColor: "rgba(5, 7, 6, 0.72)",
     borderRadius: 999,
     height: 5,
     width: 5
   },
-  mockNav: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 7
-  },
+  mockNav: { alignItems: "center", flexDirection: "row", gap: 7 },
   mockNavLine: {
     backgroundColor: "rgba(244, 255, 243, 0.26)",
     borderRadius: 999,
@@ -1280,10 +1134,7 @@ const styles = StyleSheet.create({
     height: 8,
     width: 34
   },
-  mockBody: {
-    paddingHorizontal: 16,
-    paddingTop: 22
-  },
+  mockBody: { paddingHorizontal: 16, paddingTop: 22 },
   mockTitle: {
     color: colors.text,
     fontSize: 22,
@@ -1313,12 +1164,8 @@ const styles = StyleSheet.create({
     width: 58
   },
   mockRoof: {
-    bottom: 0,
-    height: 82,
-    opacity: 0.72,
-    position: "absolute",
-    right: -6,
-    width: 104
+    bottom: 0, height: 82, opacity: 0.72,
+    position: "absolute", right: -6, width: 104
   },
   mockRoofPeak: {
     backgroundColor: "rgba(244, 255, 243, 0.18)",
@@ -1331,12 +1178,10 @@ const styles = StyleSheet.create({
   },
   mockHouse: {
     backgroundColor: "rgba(244, 255, 243, 0.1)",
-    bottom: 0,
-    height: 44,
-    position: "absolute",
-    right: 16,
-    width: 70
+    bottom: 0, height: 44, position: "absolute", right: 16, width: 70
   },
+
+  // Badge
   introBadge: {
     alignItems: "center",
     backgroundColor: "rgba(200, 255, 61, 0.11)",
@@ -1348,12 +1193,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7
   },
+  badgeSparkle: {
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+    height: 8,
+    width: 8,
+    opacity: 0.9
+  },
   introBadgeText: {
     color: colors.primary,
     fontSize: 12,
     fontWeight: "700",
     textTransform: "uppercase"
   },
+
+  // Intro text
   introTitle: {
     color: colors.text,
     fontSize: 32,
@@ -1362,14 +1216,8 @@ const styles = StyleSheet.create({
     marginTop: 20,
     textAlign: "center"
   },
-  introTitleCompact: {
-    fontSize: 29,
-    lineHeight: 36,
-    marginTop: 12
-  },
-  introTitleAccent: {
-    color: colors.primary
-  },
+  introTitleCompact: { fontSize: 29, lineHeight: 36, marginTop: 12 },
+  introTitleAccent: { color: colors.primary },
   introCopy: {
     color: colors.textMuted,
     fontSize: 16,
@@ -1378,11 +1226,9 @@ const styles = StyleSheet.create({
     maxWidth: 315,
     textAlign: "center"
   },
-  introCopyCompact: {
-    fontSize: 15,
-    lineHeight: 22,
-    marginTop: 10
-  },
+  introCopyCompact: { fontSize: 15, lineHeight: 22, marginTop: 10 },
+
+  // Value pillars
   valueRow: {
     alignItems: "center",
     flexDirection: "row",
@@ -1391,68 +1237,17 @@ const styles = StyleSheet.create({
     marginTop: 26,
     width: "100%"
   },
-  valueRowCompact: {
-    marginTop: 18
-  },
+  valueRowCompact: { marginTop: 18 },
   valuePillar: {
     alignItems: "center",
     backgroundColor: "rgba(244, 255, 243, 0.025)",
     borderColor: "rgba(244, 255, 243, 0.08)",
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     flex: 1,
     minHeight: 116,
     paddingHorizontal: 6,
     paddingVertical: 12
-  },
-  valueTitle: {
-    color: colors.primary,
-    fontSize: 13,
-    fontWeight: "800",
-    marginTop: 10,
-    textAlign: "center"
-  },
-  valueBody: {
-    color: colors.textMuted,
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 7,
-    textAlign: "center"
-  },
-  getStartedButton: {
-    alignItems: "center",
-    alignSelf: "stretch",
-    backgroundColor: colors.primary,
-    borderRadius: 18,
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 28,
-    minHeight: 62,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.18,
-    shadowRadius: 20
-  },
-  getStartedButtonPressed: {
-    backgroundColor: colors.primaryPressed,
-    transform: [{ scale: 0.99 }]
-  },
-  getStartedText: {
-    color: colors.background,
-    fontSize: 20,
-    fontWeight: "800"
-  },
-  getStartedArrow: {
-    color: colors.background,
-    fontSize: 25,
-    fontWeight: "800",
-    marginLeft: 18
-  },
-  noCreditText: {
-    color: colors.textMuted,
-    fontSize: 14,
-    marginTop: 14,
-    textAlign: "center"
   },
   miniIcon: {
     alignItems: "center",
@@ -1464,12 +1259,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     position: "relative",
     width: 48
-  },
-  miniIconCompact: {
-    backgroundColor: "transparent",
-    borderWidth: 0,
-    height: 18,
-    width: 18
   },
   miniSparkLarge: {
     backgroundColor: colors.text,
@@ -1487,118 +1276,279 @@ const styles = StyleSheet.create({
     top: 12,
     width: 5
   },
-  miniIconGlyph: {
-    color: colors.text,
-    fontSize: 20,
-    fontWeight: "900"
+  miniIconGlyph: { color: colors.text, fontSize: 20, fontWeight: "900" },
+  chartGlyph: { alignItems: "flex-end", flexDirection: "row", gap: 4, height: 24 },
+  chartBarSmall: { backgroundColor: colors.text, borderRadius: 999, height: 10, width: 4 },
+  chartBarMedium: { backgroundColor: colors.text, borderRadius: 999, height: 16, width: 4 },
+  chartBarTall: { backgroundColor: colors.primary, borderRadius: 999, height: 22, width: 4 },
+  valueTitle: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: "800",
+    marginTop: 10,
+    textAlign: "center"
   },
-  phoneGlyph: {
-    borderColor: colors.text,
-    borderRadius: 4,
-    borderWidth: 2,
-    height: 26,
-    width: 16
+  valueBody: {
+    color: colors.textMuted,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 7,
+    textAlign: "center"
   },
-  chartGlyph: {
-    alignItems: "flex-end",
-    flexDirection: "row",
-    gap: 4,
-    height: 24
-  },
-  chartBarSmall: {
-    backgroundColor: colors.text,
-    borderRadius: 999,
-    height: 10,
-    width: 4
-  },
-  chartBarMedium: {
-    backgroundColor: colors.text,
-    borderRadius: 999,
-    height: 16,
-    width: 4
-  },
-  chartBarTall: {
+
+  // Get started button
+  getStartedButton: {
+    alignItems: "center",
+    alignSelf: "stretch",
     backgroundColor: colors.primary,
-    borderRadius: 999,
-    height: 22,
-    width: 4
+    borderRadius: 18,
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 28,
+    minHeight: 62,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.22,
+    shadowRadius: 24,
+    gap: 10
   },
-  backgroundBase: {
-    backgroundColor: colors.background,
-    bottom: 0,
-    left: 0,
-    position: "absolute",
-    right: 0,
-    top: 0
+  getStartedButtonPressed: {
+    backgroundColor: colors.primaryPressed,
+    transform: [{ scale: 0.98 }]
   },
-  backgroundLineTop: {
-    backgroundColor: "rgba(200, 255, 61, 0.08)",
-    height: 1,
-    left: 18,
-    position: "absolute",
-    right: 18,
-    top: 58
-  },
-  backgroundLineBottom: {
-    backgroundColor: "rgba(125, 255, 178, 0.06)",
-    bottom: 82,
-    height: 1,
-    left: 18,
-    position: "absolute",
-    right: 18
-  },
-  backgroundGridOne: {
-    backgroundColor: "rgba(255, 255, 255, 0.018)",
-    height: 1,
-    left: 0,
-    position: "absolute",
-    right: 0,
-    top: "37%"
-  },
-  backgroundGridTwo: {
-    backgroundColor: "rgba(255, 255, 255, 0.014)",
-    bottom: "31%",
-    height: 1,
-    left: 0,
-    position: "absolute",
-    right: 0
-  },
+  getStartedText: { color: colors.background, fontSize: 20, fontWeight: "800" },
+  getStartedArrow: { color: colors.background, fontSize: 22, fontWeight: "800" },
+  noCreditText: { color: colors.textMuted, fontSize: 14, marginTop: 14, textAlign: "center" },
+
+  // Progress bar (chat)
   progressShell: {
     alignItems: "center",
-    marginBottom: spacing.md,
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 20,
     paddingTop: 4
   },
-  progressRow: {
+  progressTrack: {
+    flex: 1,
     flexDirection: "row",
-    gap: 8,
-    width: "72%"
+    gap: 4
   },
   progressSegment: {
     backgroundColor: "rgba(244, 255, 243, 0.1)",
     borderRadius: 999,
     flex: 1,
-    height: 6
+    height: 2
   },
-  progressSegmentActive: {
-    backgroundColor: "rgba(200, 255, 61, 0.46)"
-  },
-  progressSegmentCurrent: {
-    backgroundColor: colors.primary
-  },
+  progressSegmentDone: { backgroundColor: "rgba(200, 255, 61, 0.4)" },
+  progressSegmentCurrent: { backgroundColor: colors.primary },
   progressLabel: {
-    color: "rgba(200, 255, 61, 0.62)",
-    fontSize: 14,
-    fontWeight: "500",
-    marginTop: 12
+    color: "rgba(200, 255, 61, 0.55)",
+    fontSize: 13,
+    fontWeight: "600",
+    minWidth: 36,
+    textAlign: "right"
   },
-  reviewContent: {
+
+  // Step view (full-screen)
+  stepView: {
+    flex: 1
+  },
+  stepScrollContent: {
+    paddingBottom: 16
+  },
+
+  // AI question block
+  questionBlock: {
+    marginBottom: spacing.lg,
+    paddingTop: 8
+  },
+  aiAvatarRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16
+  },
+  aiAvatar: {
+    alignItems: "center",
+    backgroundColor: "rgba(18, 24, 18, 0.94)",
+    borderColor: "rgba(200, 255, 61, 0.18)",
+    borderRadius: 20,
+    borderWidth: 1,
+    height: 40,
+    justifyContent: "center",
+    overflow: "hidden",
+    position: "relative",
+    width: 40
+  },
+  aiAvatarGlow: {
+    backgroundColor: "rgba(200, 255, 61, 0.22)",
+    borderRadius: 999,
+    height: 22,
+    position: "absolute",
+    width: 22
+  },
+  sparkleLarge: {
+    backgroundColor: colors.text,
+    borderRadius: 999,
+    height: 9,
+    transform: [{ rotate: "45deg" }],
+    width: 9
+  },
+  sparkleSmall: {
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+    height: 5,
+    position: "absolute",
+    right: 9,
+    top: 9,
+    width: 5
+  },
+  aiLabel: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    textTransform: "uppercase"
+  },
+  questionText: {
+    color: colors.text,
+    fontSize: 22,
+    fontWeight: "700",
+    lineHeight: 32
+  },
+
+  typingCursor: {
+    color: colors.primary,
+    fontSize: 22,
+    fontWeight: "300"
+  },
+  optionsList: {
+    gap: 10,
+    paddingBottom: spacing.xl
+  },
+  optionCard: {
+    alignItems: "center",
+    backgroundColor: "rgba(15, 20, 15, 0.92)",
+    borderColor: "rgba(244, 255, 243, 0.1)",
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 14,
+    minHeight: 58,
     paddingHorizontal: 16,
-    paddingTop: 40,
-    paddingBottom: 28
+    paddingVertical: 14
   },
-  reviewHeader: {
-    marginBottom: spacing.lg
+  optionCardPressed: {
+    backgroundColor: "rgba(200, 255, 61, 0.06)"
   },
+  optionCardSelected: {
+    backgroundColor: "rgba(200, 255, 61, 0.08)",
+    borderColor: "rgba(200, 255, 61, 0.72)",
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 14
+  },
+  optionDot: {
+    alignItems: "center",
+    borderColor: "rgba(200, 255, 61, 0.36)",
+    borderRadius: 999,
+    borderWidth: 1.5,
+    height: 22,
+    justifyContent: "center",
+    width: 22
+  },
+  optionDotSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary
+  },
+  optionDotInner: {
+    backgroundColor: colors.background,
+    borderRadius: 999,
+    height: 8,
+    width: 8
+  },
+  optionText: {
+    color: colors.text,
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "500",
+    lineHeight: 22
+  },
+  optionTextSelected: { color: colors.text },
+  continueWrap: { marginTop: 8 },
+
+  // Upload preview
+  uploadPreview: {
+    backgroundColor: "rgba(15, 20, 15, 0.8)",
+    borderColor: "rgba(244, 255, 243, 0.08)",
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: spacing.sm
+  },
+  uploadPreviewLabel: { color: colors.textMuted, fontSize: 13, marginBottom: spacing.sm },
+  uploadPreviewRow: { flexDirection: "row", gap: spacing.sm },
+  uploadPreviewImage: {
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    height: 88,
+    width: 88
+  },
+
+  // Composer dock
+  composerDock: {
+    backgroundColor: "rgba(7, 10, 7, 0.97)",
+    borderColor: "rgba(244, 255, 243, 0.09)",
+    borderRadius: 20,
+    borderWidth: 1,
+    marginBottom: 4,
+    padding: 10
+  },
+  composerHint: {
+    color: colors.textMuted,
+    fontSize: 13,
+    marginBottom: 8,
+    paddingHorizontal: 6
+  },
+  composerRow: {
+    alignItems: "center",
+    backgroundColor: "rgba(12, 17, 12, 0.98)",
+    borderColor: "rgba(244, 255, 243, 0.1)",
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: "row",
+    minHeight: 58,
+    paddingLeft: 18,
+    paddingRight: 8
+  },
+  composerInput: {
+    color: colors.text,
+    flex: 1,
+    fontSize: 17,
+    minHeight: 46
+  },
+  sendButton: {
+    alignItems: "center",
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+    height: 44,
+    justifyContent: "center",
+    width: 44,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10
+  },
+  sendButtonDisabled: { opacity: 0.38, shadowOpacity: 0 },
+  sendButtonText: { color: colors.background, fontSize: 16, fontWeight: "800" },
+
+  // Hint bar
+  tapHintBar: { alignItems: "center", paddingBottom: 4, paddingTop: 8 },
+  tapHintText: { color: colors.textMuted, fontSize: 13 },
+
+  // Review
+  reviewContent: { paddingHorizontal: 4, paddingTop: 36, paddingBottom: 28 },
+  reviewHeader: { marginBottom: spacing.lg },
   reviewEyebrow: {
     color: colors.primary,
     fontSize: 13,
@@ -1607,22 +1557,12 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     textTransform: "uppercase"
   },
-  reviewTitle: {
-    color: colors.text,
-    fontSize: 31,
-    fontWeight: "800",
-    lineHeight: 38
-  },
-  reviewDescription: {
-    color: colors.textMuted,
-    fontSize: 16,
-    lineHeight: 24,
-    marginTop: spacing.sm
-  },
+  reviewTitle: { color: colors.text, fontSize: 30, fontWeight: "800", lineHeight: 38 },
+  reviewDescription: { color: colors.textMuted, fontSize: 16, lineHeight: 24, marginTop: spacing.sm },
   reviewCard: {
     backgroundColor: "rgba(12, 16, 13, 0.92)",
     borderColor: colors.border,
-    borderRadius: 24,
+    borderRadius: 20,
     borderWidth: 1,
     gap: spacing.md,
     padding: spacing.lg
@@ -1651,278 +1591,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 6
   },
-  editButtonPressed: {
-    opacity: 0.8
-  },
-  editButtonText: {
-    color: colors.primary,
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase"
-  },
-  reviewValue: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: "600",
-    lineHeight: 23
-  },
-  reviewActions: {
-    gap: spacing.sm,
-    marginTop: spacing.lg
-  },
-  chatScroll: {
-    flex: 1
-  },
-  chatContent: {
-    flexGrow: 1,
-    gap: spacing.md,
-    paddingBottom: spacing.md
-  },
-  messageGroup: {
-    gap: spacing.md
-  },
-  assistantRow: {
-    alignItems: "flex-start",
-    flexDirection: "row",
-    gap: 10,
-    paddingRight: 18
-  },
-  assistantIconWrap: {
-    alignItems: "center",
-    backgroundColor: "rgba(18, 24, 18, 0.94)",
-    borderColor: "rgba(200, 255, 61, 0.14)",
-    borderRadius: 20,
-    borderWidth: 1,
-    height: 44,
-    justifyContent: "center",
-    overflow: "hidden",
-    position: "relative",
-    width: 44
-  },
-  assistantIconWrapArchived: {
-    opacity: 0.72
-  },
-  assistantIconGlow: {
-    backgroundColor: "rgba(200, 255, 61, 0.22)",
-    borderRadius: 999,
-    height: 24,
-    position: "absolute",
-    width: 24
-  },
-  sparkleLarge: {
-    backgroundColor: colors.text,
-    borderRadius: 999,
-    height: 9,
-    transform: [{ rotate: "45deg" }],
-    width: 9
-  },
-  sparkleSmall: {
-    backgroundColor: colors.primary,
-    borderRadius: 999,
-    height: 6,
-    position: "absolute",
-    right: 10,
-    top: 10,
-    width: 6
-  },
-  assistantBubble: {
-    backgroundColor: "rgba(17, 22, 17, 0.96)",
-    borderColor: "rgba(244, 255, 243, 0.1)",
-    borderRadius: 20,
-    borderTopLeftRadius: 10,
-    borderWidth: 1,
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 14
-  },
-  assistantBubbleArchived: {
-    opacity: 0.74
-  },
-  assistantText: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: "500",
-    lineHeight: 25
-  },
-  assistantTextArchived: {
-    color: "rgba(242, 245, 251, 0.88)"
-  },
-  userRow: {
-    alignItems: "flex-end",
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    paddingLeft: 52
-  },
-  userBubble: {
-    backgroundColor: "rgba(200, 255, 61, 0.1)",
-    borderColor: "rgba(200, 255, 61, 0.58)",
-    borderRadius: 18,
-    borderBottomRightRadius: 10,
-    borderWidth: 1,
-    maxWidth: "86%",
-    minHeight: 54,
-    justifyContent: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12
-  },
-  userText: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: "500",
-    lineHeight: 25
-  },
-  userMediaGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-    marginTop: spacing.sm
-  },
-  userMediaImage: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    height: 84,
-    width: 84
-  },
-  optionStack: {
-    gap: 10,
-    marginLeft: 54
-  },
-  optionCard: {
-    alignItems: "center",
-    backgroundColor: "rgba(15, 20, 15, 0.96)",
-    borderColor: "rgba(244, 255, 243, 0.1)",
-    borderRadius: 16,
-    borderWidth: 1,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    minHeight: 58,
-    paddingHorizontal: 14
-  },
-  optionCardSelected: {
-    borderColor: "rgba(200, 255, 61, 0.82)",
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.18,
-    shadowRadius: 18
-  },
-  optionLeading: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 14
-  },
-  optionIcon: {
-    backgroundColor: "rgba(200, 255, 61, 0.12)",
-    borderColor: "rgba(200, 255, 61, 0.32)",
-    borderRadius: 8,
-    borderWidth: 1,
-    height: 20,
-    width: 20
-  },
-  optionIconSelected: {
-    backgroundColor: "rgba(200, 255, 61, 0.24)"
-  },
-  optionText: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: "500"
-  },
-  optionTextSelected: {
-    color: colors.text
-  },
-  optionCheck: {
-    alignItems: "center",
-    borderColor: "rgba(255, 255, 255, 0.12)",
-    borderRadius: 999,
-    borderWidth: 1,
-    height: 30,
-    justifyContent: "center",
-    width: 30
-  },
-  optionCheckSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary
-  },
-  optionCheckText: {
-    color: "#0b1020",
-    fontSize: 10,
-    fontWeight: "800"
-  },
-  uploadPreview: {
-    backgroundColor: "rgba(15, 20, 15, 0.8)",
-    borderColor: "rgba(244, 255, 243, 0.08)",
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: spacing.sm
-  },
-  uploadPreviewLabel: {
-    color: colors.textMuted,
-    fontSize: 13,
-    marginBottom: spacing.sm
-  },
-  uploadPreviewRow: {
-    flexDirection: "row",
-    gap: spacing.sm
-  },
-  uploadPreviewImage: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    height: 88,
-    width: 88
-  },
-  composerDock: {
-    backgroundColor: "rgba(7, 10, 7, 0.98)",
-    borderColor: "rgba(244, 255, 243, 0.09)",
-    borderRadius: 22,
-    borderWidth: 1,
-    marginTop: spacing.sm,
-    padding: 10
-  },
-  composerHint: {
-    color: colors.textMuted,
-    fontSize: 13,
-    marginBottom: 10,
-    paddingHorizontal: 6
-  },
-  composerRow: {
-    alignItems: "center",
-    backgroundColor: "rgba(12, 17, 12, 0.98)",
-    borderColor: "rgba(244, 255, 243, 0.1)",
-    borderRadius: 18,
-    borderWidth: 1,
-    flexDirection: "row",
-    minHeight: 60,
-    paddingLeft: 18,
-    paddingRight: 8
-  },
-  composerInput: {
-    color: colors.text,
-    flex: 1,
-    fontSize: 18,
-    minHeight: 48
-  },
-  sendButton: {
-    alignItems: "center",
-    backgroundColor: colors.primary,
-    borderRadius: 999,
-    height: 46,
-    justifyContent: "center",
-    width: 46
-  },
-  sendButtonDisabled: {
-    opacity: 0.4
-  },
-  sendButtonText: {
-    color: "#09101d",
-    fontSize: 14,
-    fontWeight: "800"
-  },
-  choiceFooter: {
-    paddingTop: 4
-  },
-  choiceInstruction: {
-    color: colors.textMuted,
-    fontSize: 14,
-    paddingBottom: 8,
-    textAlign: "center"
-  }
+  editButtonPressed: { opacity: 0.8 },
+  editButtonText: { color: colors.primary, fontSize: 12, fontWeight: "700", textTransform: "uppercase" },
+  reviewValue: { color: colors.text, fontSize: 16, fontWeight: "600", lineHeight: 23 },
+  reviewActions: { gap: spacing.sm, marginTop: spacing.lg }
 });
