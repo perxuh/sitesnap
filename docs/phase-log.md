@@ -101,21 +101,41 @@ Completed so far:
 - Show uploaded image thumbnails inside the chatbot transcript and on the preview screen
 - Upgrade the project from Expo SDK 53 to Expo SDK 54 for better compatibility with the current iPhone Expo Go app
 - Add `babel-preset-expo` as a direct dev dependency after the SDK upgrade so Metro can resolve the Babel preset cleanly
+- Add local onboarding progress persistence with `@react-native-async-storage/async-storage`
+- Restore force-closed sessions to the exact onboarding question/review state, or to preview once onboarding has been completed
+- Add industry-specific service choices based on the selected business type
+- Add a compact back control to the questionnaire progress bar so users can return to the previous question
+- Add full-screen safe-area handling with `react-native-safe-area-context` and `expo-device` for larger iPhones and camera cutouts
+- Remove faint decorative top/bottom background lines so app backgrounds are continuous across safe areas
+- Replace the old preview placeholder route with `WebsitePreviewScreen`
+- Add a compact website preview card, temporary `*.sitesnap.com` domain display, three dynamic setup confirmation boxes, `Go Live` CTA, and `Edit Answers` action
+- Make `Edit Answers` return to the onboarding review/edit screen with existing answers
+- Keep `Go Live` mocked as a placeholder for a future purchase/publishing flow
 
 Files created or updated so far:
 
 - `App.tsx`
 - `package.json`
 - `package-lock.json`
+- `src/app/deviceScreen.ts`
+- `src/lib/storage/onboardingPersistence.ts`
 - `src/components/common/SiteSnapMark.tsx`
 - `src/screens/onboarding/WelcomeScreen.tsx`
 - `src/screens/preview/PreviewPlaceholderScreen.tsx`
+- `src/screens/preview/WebsitePreviewScreen.tsx`
 - `src/types/onboarding.ts`
 - `docs/phase-log.md`
 - `docs/session-handoff.md`
 
 Still to build in Phase 2:
 
-- Decide whether Phase 2 should end with the current mock preview or with a more website-like local preview layout
+- Add a placeholder `Go Live` / purchase screen after the preview CTA
+- Keep purchase mocked for now, but design around future Apple/Google in-app purchase
+- Add the post-purchase/dashboard concept later: AI edit box plus domain setup cards
+- Define a normalized website generation input object before backend/Anthropic work
 - Add any remaining local validation and polish needed before moving into the structured data model in Phase 3
 - Keep all onboarding data local only until Phase 3 and later backend phases are approved
+
+Current verification:
+
+- `npm run typecheck` is passing.

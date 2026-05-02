@@ -27,6 +27,15 @@ export type StepId =
 
 export type AnswerValue = string | string[] | OnboardingMediaAsset[];
 export type OnboardingAnswers = Partial<Record<StepId, AnswerValue>>;
+export type OnboardingIntroStage = "logo" | "bridge" | "chat" | "review";
+export type OnboardingDraftState = {
+  introStage: OnboardingIntroStage;
+  stepIndex: number;
+  draft: string;
+  answers: OnboardingAnswers;
+  completedSteps: StepId[];
+  editingStepId: StepId | null;
+};
 
 export const onboardingStepOrder: StepId[] = [
   "businessName",

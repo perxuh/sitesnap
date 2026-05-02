@@ -34,8 +34,8 @@ Approval status:
 
 - Phase 1 is complete.
 - Phase 2 has started.
-- Phase 2 now includes the review/edit loop, preview handoff, and real image picking for logo and job photos.
-- Phase 2 is still not complete because the data is still local-only and the preview is still a mock website summary.
+- Phase 2 now includes the redesigned onboarding experience, local progress persistence, review/edit loop, industry-specific service choices, preview handoff, real image picking for logo/job photos, and a conversion-oriented mock preview screen.
+- Phase 2 is still not complete because the data is still device-local only, there is no backend, and the preview is still a mock representation rather than a real generated website.
 
 ## What Was Built In Phase 1
 
@@ -86,6 +86,8 @@ Approval status:
 - The app shell currently uses simple local screen state instead of a full navigation library to keep the MVP lightweight.
 - We are following the instruction file rule to work one phase at a time and stop for approval after each phase.
 - We are keeping mock-first architecture, especially for AI and publishing flows.
+- Login should not be required before onboarding. The preferred funnel is anonymous/local onboarding first, preview second, account creation/payment later when the user wants to save, publish, or purchase.
+- Domain setup should happen after `Go Live` / purchase, not before preview. The default paid/published path should start with a temporary SiteSnap domain, then guide custom domain setup as a post-purchase launch task.
 
 ## Current Folder Structure
 
@@ -111,20 +113,37 @@ Approval status:
 
 ## Current App Behavior
 
-- The app opens to a dark conversational welcome screen.
-- A short temporary SiteSnap logo animation plays before the first prompt appears.
-- A clean pre-chat intro screen now appears after the logo with one website mockup, a short headline, three simple value cards, and a `Get Started` button.
-- Pressing `Get Started` transitions into the AI questionnaire chat.
-- The onboarding flow now behaves like a typed AI conversation instead of a standard form.
-- The current visual direction is clean and simple: near-black background, restrained neon-lime accents, subtle divider lines, and no circular glow/orb background decoration.
-- The current transcript now runs through the 14-question local service business setup flow plus conditional follow-up steps for logo upload, photo upload, and review details.
+- The app opens into a more cinematic onboarding sequence rather than dropping directly into the questionnaire.
+- A short SiteSnap logo splash animates in first, followed by a full-screen bridge / landing screen.
+- The bridge screen includes a stylized website mockup, an `AI website builder` badge, a contractor-focused headline, three value pillars, and a `Get Started` CTA.
+- Pressing `Get Started` transitions into the questionnaire with haptic feedback and animated screen motion.
+- The questionnaire is now a full-screen, per-step conversational flow instead of the earlier simpler chat shell.
+- Each step uses a typewriter-style AI prompt, segmented progress bar, animated transitions, and a persistent bottom composer for text-input steps.
+- The questionnaire has a compact back control beside the progress bar so users can return to the previous question without restarting the flow.
+- The services question now adapts based on the selected business type. For example, Landscaping shows lawn/edging/trimming/mulch-type services, Roofing shows roof repair/replacement/leak/storm options, and Plumbing / HVAC shows drain/leak/water heater/AC/furnace options.
+- The current visual direction is more polished and marketing-led: dark cinematic background texture, sharper layout hierarchy, stronger card styling, and brighter accent moments.
+- The current transcript still runs through the local service business setup flow plus conditional follow-up steps for logo upload, photo upload, and review details.
 - The questionnaire supports text answers, single-choice answer cards, multi-select answer cards, and image-picking steps.
-- The logo upload and photo upload steps now use `expo-image-picker` and show selected images back inside the chatbot transcript.
-- The review screen shows all visible onboarding answers and lets the user jump back to edit any single step.
-- The preview screen now receives onboarding answers from the app shell and renders a mock website summary from them.
-- The preview also shows selected logo and job photo thumbnails when available.
-- The user can tap into a dashboard placeholder screen.
-- The user can go back or restart the shell flow.
+- The logo upload and photo upload steps use `expo-image-picker` and show selected images inline before advancing.
+- Haptic feedback is now used throughout key onboarding interactions via `expo-haptics`.
+- The review screen is now a dedicated full-screen summary state that shows all visible onboarding answers and lets the user jump back to edit any single step.
+- Onboarding progress is persisted locally with `@react-native-async-storage/async-storage`. Force-closing Expo Go and reopening should resume at the exact question/review state, or reopen into preview if the user already completed onboarding.
+- The app uses `react-native-safe-area-context` plus `expo-device` through `src/app/deviceScreen.ts` to support full-screen layouts on larger iPhones while keeping content clear of the camera island and home indicator.
+- The previous decorative top/bottom background lines were removed from onboarding and preview so the background is continuous across the entire screen.
+- The preview route now renders `src/screens/preview/WebsitePreviewScreen.tsx` instead of the older placeholder summary screen.
+- The preview screen shows a compact mock browser/website card, a temporary `*.sitesnap.com` domain, three dynamic setup confirmation boxes, a `Go Live` CTA, and an `Edit Answers` action.
+- `Edit Answers` on the preview screen returns to the onboarding review/edit screen with the existing answers instead of restarting from the beginning.
+- `Go Live` is currently a placeholder alert. Future work should route to a purchase/publishing screen and eventually Apple/Google in-app purchase.
+- The dashboard placeholder still exists but is not the main next step from preview anymore.
+
+## Latest Redesign Notes
+
+- Latest synced GitHub commit: `8925997` - `Redesign onboarding UI with full-screen per-step conversational flow`
+- The redesign was concentrated mostly in `src/screens/onboarding/WelcomeScreen.tsx`.
+- `App.tsx` was adjusted so the welcome flow can take over the full screen without the previous shell padding.
+- Newer Phase 2 work added `@react-native-async-storage/async-storage`, `react-native-safe-area-context`, and `expo-device`.
+- `expo-haptics` is now installed with the Expo-compatible SDK 54 version.
+- Claude contributed the current compact preview UI in `src/screens/preview/WebsitePreviewScreen.tsx`; Codex wired it into the app shell and adjusted persistence/safe-area behavior around it.
 
 ## Verification Already Completed
 
@@ -134,16 +153,28 @@ Approval status:
 - `npm_config_cache=.npm-cache npx expo-doctor`
 - `npm run typecheck`
 
-Expo Doctor and TypeScript type checking are currently passing.
+Historical Phase 2 verification had Expo Doctor and TypeScript passing before the onboarding redesign commit.
+
+Current verification on this machine:
+
+- `npm run typecheck`
+
+Current result:
+
+- TypeScript is passing.
+- Expo Go testing confirmed local persistence restores the exact saved onboarding question instead of bouncing back to the `Get Started` screen after force close.
 
 ## Known Weak Spots
 
 - Navigation is temporary and intentionally simple.
-- Onboarding answers are still local only and are not persisted.
-- No persistent state yet.
+- Onboarding answers are persisted locally on the device, but they are not synced across devices and are not saved to a backend.
 - No real website data model yet.
-- The preview is still a mock summary rather than a true generated website layout.
+- The preview is still a mock/static UI rather than a true generated website layout.
 - Image upload currently supports local picking only; there is no backend upload or storage.
+- The redesigned onboarding screen is now a large, stateful single file and will likely benefit from future extraction into smaller subcomponents once the interaction model stabilizes.
+- `WebsitePreviewScreen.tsx` is also becoming a meaningful UI surface and may need component extraction once purchase/domain flows are added.
+- No real purchase flow yet. `Go Live` is only a placeholder alert and should later route to a purchase/publishing screen.
+- No real domain setup yet. Domain configuration should come after purchase/publishing, with a temporary SiteSnap domain available by default.
 - No linting or tests yet.
 
 ## What To Read First In A New Session
@@ -155,19 +186,21 @@ Expo Doctor and TypeScript type checking are currently passing.
 
 ## Recommended Next Step
 
-Continue `Phase 2 - Onboarding Questionnaire` by improving the mock generated preview and tightening the asset/review experience.
+Continue `Phase 2 - Onboarding Questionnaire` by tightening the preview-to-purchase path and preparing the structured data handoff for later backend/AI generation.
 
-Immediate next onboarding build:
+Immediate next build options:
 
-- Refine the review step with better editing affordances and possibly inline validation
-- Improve the preview from a summary card into clearer website sections
-- Decide whether to finish Phase 2 with richer local mock states or begin Phase 3 data modeling once approved
+- Add a real placeholder `Go Live` / purchase screen after the preview CTA.
+- Keep IAP mocked for now, but shape the screen around eventual Apple/Google in-app purchase.
+- After mock purchase, introduce the future dashboard concept: AI edit box plus domain setup cards.
+- Define and save a normalized `WebsiteGenerationBrief` object later, before Anthropic/backend work.
+- Consider extracting onboarding step config and preview subcomponents as the files continue to grow.
 
 Phase 2 should focus on:
 
 - Review collected onboarding answers
 - Local asset picking and mock connect states for logo, photos, and reviews
-- Pass questionnaire data into the preview placeholder
+- Pass questionnaire data into the mock website preview
 - Local state only
 
 ## Notes For Future Sessions

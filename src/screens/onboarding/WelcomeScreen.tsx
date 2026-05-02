@@ -17,21 +17,25 @@ import {
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 
+import { useDeviceScreenProfile } from "../../app/deviceScreen";
 import { colors, spacing } from "../../app/theme";
 import { Button } from "../../components/common/Button";
 import { SiteSnapMark } from "../../components/common/SiteSnapMark";
+import { savePersistedOnboardingSession } from "../../lib/storage/onboardingPersistence";
 import {
   onboardingStepLabels,
   OnboardingAnswers,
+  OnboardingDraftState,
+  OnboardingIntroStage,
   OnboardingMediaAsset,
   StepId
 } from "../../types/onboarding";
 
 type WelcomeScreenProps = {
+  initialDraft?: OnboardingDraftState | null;
   onContinue: (answers: OnboardingAnswers) => void;
 };
 
-type IntroStage = "logo" | "bridge" | "chat" | "review";
 type StepKind = "text" | "choice" | "multiChoice" | "asset";
 
 type AnswerValue = string | string[] | OnboardingMediaAsset[];
@@ -48,7 +52,7 @@ type StepConfig = {
   prompt: (answers: OnboardingAnswers) => string;
   placeholder?: string;
   hint: string;
-  options?: readonly string[];
+  options?: readonly string[] | ((answers: OnboardingAnswers) => readonly string[]);
   assetActions?: readonly AssetAction[];
   assetLimit?: "single" | "multiple";
   required?: boolean;
@@ -69,6 +73,137 @@ const businessTypes = [
   "Concrete",
   "Other"
 ] as const;
+
+const fallbackServiceOptions = [
+  "Installation",
+  "Repairs",
+  "Maintenance",
+  "Emergency service",
+  "Free estimates",
+  "Commercial work",
+  "Residential work",
+  "Custom projects",
+  "Add later"
+] as const;
+
+const industryServiceOptions: Record<(typeof businessTypes)[number], readonly string[]> = {
+  Excavation: [
+    "Site prep",
+    "Grading",
+    "Trenching",
+    "Land clearing",
+    "Drainage work",
+    "Driveway excavation",
+    "Foundation excavation",
+    "Demolition",
+    "Gravel spreading",
+    "Utility trenching",
+    "Add later"
+  ],
+  Landscaping: [
+    "Lawn mowing",
+    "Edging",
+    "Trimming",
+    "Mulch installation",
+    "Sod installation",
+    "Planting",
+    "Landscape design",
+    "Irrigation",
+    "Tree trimming",
+    "Yard cleanups",
+    "Hardscaping",
+    "Add later"
+  ],
+  Roofing: [
+    "Roof repair",
+    "Roof replacement",
+    "Leak repair",
+    "Shingle roofing",
+    "Metal roofing",
+    "Flat roofing",
+    "Storm damage repair",
+    "Roof inspections",
+    "Gutter installation",
+    "Emergency tarping",
+    "Add later"
+  ],
+  "Plumbing / HVAC": [
+    "Drain cleaning",
+    "Leak repair",
+    "Water heater installation",
+    "Fixture installation",
+    "Pipe repair",
+    "Sewer line work",
+    "AC repair",
+    "AC installation",
+    "Furnace repair",
+    "Maintenance plans",
+    "Emergency service",
+    "Add later"
+  ],
+  Cleaning: [
+    "House cleaning",
+    "Deep cleaning",
+    "Move-in / move-out cleaning",
+    "Office cleaning",
+    "Post-construction cleaning",
+    "Pressure washing",
+    "Window cleaning",
+    "Recurring cleaning",
+    "Airbnb turnovers",
+    "Add later"
+  ],
+  Painting: [
+    "Interior painting",
+    "Exterior painting",
+    "Cabinet painting",
+    "Drywall repair",
+    "Pressure washing",
+    "Staining",
+    "Deck painting",
+    "Commercial painting",
+    "Residential painting",
+    "Color consultation",
+    "Add later"
+  ],
+  Concrete: [
+    "Driveways",
+    "Patios",
+    "Sidewalks",
+    "Slabs",
+    "Foundations",
+    "Stamped concrete",
+    "Concrete repair",
+    "Garage floors",
+    "Tear-out and replacement",
+    "Pool decks",
+    "Add later"
+  ],
+  Other: fallbackServiceOptions
+};
+
+function getServiceOptionsForBusinessType(answers: OnboardingAnswers) {
+  const businessType = getTextAnswer(answers, "businessType");
+  if (businessType in industryServiceOptions) {
+    return industryServiceOptions[businessType as keyof typeof industryServiceOptions];
+  }
+
+  return fallbackServiceOptions;
+}
+
+function getServicePromptForBusinessType(answers: OnboardingAnswers) {
+  const businessType = getTextAnswer(answers, "businessType");
+
+  if (businessType === "Plumbing / HVAC") {
+    return "What plumbing or HVAC services do you offer? Pick the ones customers ask for most.";
+  }
+
+  if (businessType && businessType !== "Other") {
+    return `What ${businessType.toLowerCase()} services do you offer? Pick the ones customers ask for most.`;
+  }
+
+  return "What services do you offer? Pick the ones that matter most for your website.";
+}
 
 const stepConfig: readonly StepConfig[] = [
   {
@@ -91,17 +226,8 @@ const stepConfig: readonly StepConfig[] = [
     id: "services",
     kind: "multiChoice",
     hint: "Choose services or add them later",
-    prompt: () => "What services do you offer? Pick the ones that matter most for your website.",
-    options: [
-      "Installation",
-      "Repairs",
-      "Maintenance",
-      "Emergency service",
-      "Free estimates",
-      "Commercial work",
-      "Residential work",
-      "Custom projects"
-    ]
+    prompt: getServicePromptForBusinessType,
+    options: getServiceOptionsForBusinessType
   },
   {
     id: "serviceAreas",
@@ -282,6 +408,11 @@ function getTextAnswer(answers: OnboardingAnswers, stepId: StepId) {
   return typeof answer === "string" ? answer : "";
 }
 
+function getStepOptions(step: StepConfig, answers: OnboardingAnswers) {
+  if (!step.options) return [];
+  return typeof step.options === "function" ? step.options(answers) : step.options;
+}
+
 function isMediaAnswerValue(
   answer: AnswerValue | undefined
 ): answer is OnboardingMediaAsset[] {
@@ -321,26 +452,46 @@ function formatSummaryAnswer(answer: AnswerValue | undefined) {
   return formatted.length > 0 ? formatted : "Not provided";
 }
 
-export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
+function getCompletedStepsFromAnswers(answers: OnboardingAnswers) {
+  return Object.keys(answers) as StepId[];
+}
+
+export function WelcomeScreen({
+  initialDraft,
+  onContinue
+}: WelcomeScreenProps) {
   const { height, width } = useWindowDimensions();
-  const [introStage, setIntroStage] = useState<IntroStage>("logo");
-  const [stepIndex, setStepIndex] = useState(0);
+  const screenProfile = useDeviceScreenProfile();
+  const [introStage, setIntroStage] = useState<OnboardingIntroStage>(
+    initialDraft?.introStage ?? "logo"
+  );
+  const [stepIndex, setStepIndex] = useState(initialDraft?.stepIndex ?? 0);
   const [typedPrompt, setTypedPrompt] = useState("");
   const [isTyping, setIsTyping] = useState(true);
-  const [draft, setDraft] = useState("");
-  const [answers, setAnswers] = useState<OnboardingAnswers>({});
-  const [completedSteps, setCompletedSteps] = useState<StepId[]>([]);
-  const [editingStepId, setEditingStepId] = useState<StepId | null>(null);
+  const [draft, setDraft] = useState(initialDraft?.draft ?? "");
+  const [answers, setAnswers] = useState<OnboardingAnswers>(
+    initialDraft?.answers ?? {}
+  );
+  const [completedSteps, setCompletedSteps] = useState<StepId[]>(
+    initialDraft?.completedSteps ?? getCompletedStepsFromAnswers(initialDraft?.answers ?? {})
+  );
+  const [editingStepId, setEditingStepId] = useState<StepId | null>(
+    initialDraft?.editingStepId ?? null
+  );
 
   // Intro animations
-  const logoOpacity = useRef(new Animated.Value(0)).current;
-  const logoScale = useRef(new Animated.Value(0.94)).current;
-  const bridgeOpacity = useRef(new Animated.Value(0)).current;
-  const bridgeTranslate = useRef(new Animated.Value(18)).current;
+  const shouldRunIntroAnimation = !initialDraft;
+  const logoOpacity = useRef(new Animated.Value(shouldRunIntroAnimation ? 0 : 1)).current;
+  const logoScale = useRef(new Animated.Value(shouldRunIntroAnimation ? 0.94 : 1)).current;
+  const bridgeOpacity = useRef(new Animated.Value(introStage === "bridge" ? 1 : 0)).current;
+  const bridgeTranslate = useRef(new Animated.Value(introStage === "bridge" ? 0 : 18)).current;
 
   // Per-step animation (fade + slide)
   const stepOpacity = useRef(new Animated.Value(0)).current;
   const stepTranslate = useRef(new Animated.Value(16)).current;
+  const lastSavedDraftRef = useRef<string | null>(
+    initialDraft ? JSON.stringify(initialDraft) : null
+  );
 
   const activeSteps = useMemo(() => getVisibleSteps(answers), [answers]);
   const safeStepIndex = Math.min(stepIndex, activeSteps.length - 1);
@@ -356,9 +507,13 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
   const selectedOptions = isStringListAnswer(currentAnswer) ? currentAnswer : [];
   const selectedChoice = typeof currentAnswer === "string" ? currentAnswer : "";
   const selectedMedia = getMediaAnswer(answers, currentStep.id);
+  const currentStepOptions = getStepOptions(currentStep, answers);
+  const canGoBack = introStage === "chat" && safeStepIndex > 0 && !isTyping;
 
   // Logo → bridge intro sequence
   useEffect(() => {
+    if (!shouldRunIntroAnimation) return;
+
     const sequence = Animated.sequence([
       Animated.parallel([
         Animated.timing(logoOpacity, {
@@ -403,7 +558,13 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
     });
 
     return () => sequence.stop();
-  }, [bridgeOpacity, bridgeTranslate, logoOpacity, logoScale]);
+  }, [
+    bridgeOpacity,
+    bridgeTranslate,
+    logoOpacity,
+    logoScale,
+    shouldRunIntroAnimation
+  ]);
 
   // Typewriter effect on new step
   useEffect(() => {
@@ -465,6 +626,35 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
   useEffect(() => {
     if (stepIndex !== safeStepIndex) setStepIndex(safeStepIndex);
   }, [safeStepIndex, stepIndex]);
+
+  useEffect(() => {
+    const draftState: OnboardingDraftState = {
+      introStage,
+      stepIndex: safeStepIndex,
+      draft,
+      answers,
+      completedSteps,
+      editingStepId
+    };
+    const serializedDraft = JSON.stringify(draftState);
+
+    if (serializedDraft === lastSavedDraftRef.current) return;
+
+    lastSavedDraftRef.current = serializedDraft;
+    void savePersistedOnboardingSession({
+      version: 1,
+      currentScreen: "welcome",
+      onboardingAnswers: answers,
+      welcomeDraft: draftState
+    });
+  }, [
+    answers,
+    completedSteps,
+    draft,
+    editingStepId,
+    introStage,
+    safeStepIndex
+  ]);
 
   const normalizePickedAssets = (
     assets: ImagePicker.ImagePickerAsset[]
@@ -533,6 +723,20 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
     animateStepOut(() => {
       setStepIndex((current) => current + 1);
       setDraft("");
+    });
+  };
+
+  const goBackStep = () => {
+    if (!canGoBack) return;
+
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    animateStepOut(() => {
+      const previousIndex = Math.max(safeStepIndex - 1, 0);
+      const previousStep = activeSteps[previousIndex];
+
+      setStepIndex(previousIndex);
+      setDraft(getTextAnswer(answers, previousStep.id));
+      setEditingStepId(null);
     });
   };
 
@@ -683,7 +887,11 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
         <Animated.ScrollView
           contentContainerStyle={[
             styles.introScreen,
-            isCompactIntro && styles.introScreenCompact
+            isCompactIntro && styles.introScreenCompact,
+            {
+              paddingBottom: screenProfile.bottomInset + 20,
+              paddingTop: screenProfile.topInset + 24
+            }
           ]}
           showsVerticalScrollIndicator={false}
           style={[
@@ -762,7 +970,13 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
       <View style={styles.fullscreen}>
         <BackgroundTexture />
         <ScrollView
-          contentContainerStyle={styles.reviewContent}
+          contentContainerStyle={[
+            styles.reviewContent,
+            {
+              paddingBottom: screenProfile.bottomInset + 28,
+              paddingTop: screenProfile.topInset + 28
+            }
+          ]}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.reviewHeader}>
@@ -824,7 +1038,26 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
         <BackgroundTexture />
 
         {/* Progress bar */}
-        <View style={styles.progressShell}>
+        <View
+          style={[
+            styles.progressShell,
+            { paddingTop: screenProfile.topInset + 4 }
+          ]}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Go back to previous question"
+            disabled={!canGoBack}
+            onPress={goBackStep}
+            style={({ pressed }) => [
+              styles.stepBackButton,
+              !canGoBack && styles.stepBackButtonDisabled,
+              pressed && canGoBack && styles.stepBackButtonPressed
+            ]}
+          >
+            <Text style={styles.stepBackArrow}>‹</Text>
+            <Text style={styles.stepBackText}>Back</Text>
+          </Pressable>
           <View style={styles.progressTrack}>
             {Array.from({ length: totalSteps }).map((_, index) => (
               <View
@@ -887,7 +1120,7 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
                       <Text style={styles.optionText}>{action.label}</Text>
                     </Pressable>
                   ))
-                : currentStep.options?.map((option) => {
+                : currentStepOptions.map((option) => {
                     const selected =
                       currentStep.kind === "choice"
                         ? selectedChoice === option
@@ -944,7 +1177,12 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
 
         {/* Composer dock — only for text steps */}
         {currentStep.kind === "text" && (
-          <View style={styles.composerDock}>
+          <View
+            style={[
+              styles.composerDock,
+              { marginBottom: Math.max(screenProfile.bottomInset - 10, 4) }
+            ]}
+          >
             <Text style={styles.composerHint}>{currentStep.hint}</Text>
             <View style={styles.composerRow}>
               <TextInput
@@ -979,7 +1217,12 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
         )}
 
         {currentStep.kind === "choice" || currentStep.kind === "asset" ? (
-          <View style={styles.tapHintBar}>
+          <View
+            style={[
+              styles.tapHintBar,
+              { paddingBottom: Math.max(screenProfile.bottomInset, 8) }
+            ]}
+          >
             <Text style={styles.tapHintText}>Tap an answer to continue</Text>
           </View>
         ) : null}
@@ -992,11 +1235,7 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
 
 function BackgroundTexture() {
   return (
-    <>
-      <View style={styles.backgroundBase} />
-      <View style={styles.backgroundLineTop} />
-      <View style={styles.backgroundLineBottom} />
-    </>
+    <View style={styles.backgroundBase} />
   );
 }
 
@@ -1045,30 +1284,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 16
+    paddingTop: 0,
+    paddingBottom: 0
   },
 
   // Ambient background
   backgroundBase: {
     backgroundColor: colors.background,
     bottom: 0, left: 0, position: "absolute", right: 0, top: 0
-  },
-  backgroundLineTop: {
-    backgroundColor: "rgba(200, 255, 61, 0.07)",
-    height: 1,
-    left: 0,
-    position: "absolute",
-    right: 0,
-    top: 56
-  },
-  backgroundLineBottom: {
-    backgroundColor: "rgba(125, 255, 178, 0.05)",
-    bottom: 90,
-    height: 1,
-    left: 0,
-    position: "absolute",
-    right: 0
   },
 
   // Logo stage
@@ -1324,9 +1547,43 @@ const styles = StyleSheet.create({
   progressShell: {
     alignItems: "center",
     flexDirection: "row",
-    gap: 10,
+    gap: 8,
     marginBottom: 20,
-    paddingTop: 4
+    paddingTop: 0
+  },
+  stepBackButton: {
+    alignItems: "center",
+    backgroundColor: "rgba(244, 255, 243, 0.035)",
+    borderColor: "rgba(244, 255, 243, 0.1)",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 3,
+    minHeight: 30,
+    paddingLeft: 9,
+    paddingRight: 11
+  },
+  stepBackButtonPressed: {
+    backgroundColor: "rgba(200, 255, 61, 0.08)",
+    borderColor: "rgba(200, 255, 61, 0.28)",
+    transform: [{ scale: 0.98 }]
+  },
+  stepBackButtonDisabled: {
+    opacity: 0.28
+  },
+  stepBackArrow: {
+    color: colors.primary,
+    fontSize: 20,
+    fontWeight: "700",
+    lineHeight: 22,
+    marginTop: -1
+  },
+  stepBackText: {
+    color: "rgba(244, 255, 243, 0.7)",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+    textTransform: "uppercase"
   },
   progressTrack: {
     flex: 1,
