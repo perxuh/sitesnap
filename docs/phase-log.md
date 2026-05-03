@@ -110,7 +110,17 @@ Completed so far:
 - Replace the old preview placeholder route with `WebsitePreviewScreen`
 - Add a compact website preview card, temporary `*.sitesnap.com` domain display, three dynamic setup confirmation boxes, `Go Live` CTA, and `Edit Answers` action
 - Make `Edit Answers` return to the onboarding review/edit screen with existing answers
-- Keep `Go Live` mocked as a placeholder for a future purchase/publishing flow
+- Add a mocked `Go Live` purchase screen after the preview CTA
+- Route `Go Live` from preview into the purchase screen instead of showing an alert
+- Add a single-plan `SiteSnap Launch` purchase page with personalized business/domain copy, instant access messaging, automatic temporary domain setup, contact form setup, AI Editor access, monthly renewal copy, restore purchase, and Terms/Privacy placeholders
+- Simulate purchase activation and route successful mock purchase completion to the existing dashboard placeholder
+- Replace the old dashboard placeholder with a real mocked post-purchase tabbed dashboard
+- Add swipeable/tappable dashboard tabs for `AI EDITOR`, `DOMAIN`, `CONTACT`, and `SETTINGS`
+- Add a mocked AI edit composer with prompt chips, live-site preview, draft response state, and disabled future publish action
+- Add a mocked domain status/search/reserve flow with the temporary SiteSnap domain treated as active
+- Add local contact-form routing controls for primary email, CC emails, notification toggles, local save confirmation, and email preview
+- Add settings/status content for website status, business profile, content asset readiness, launch checklist, and quick actions
+- Fix dashboard tab tapping so pressing a tab lands on that tab instead of snapping one page too far; swiping and tapping now both work in Expo Go
 
 Files created or updated so far:
 
@@ -120,18 +130,21 @@ Files created or updated so far:
 - `src/app/deviceScreen.ts`
 - `src/lib/storage/onboardingPersistence.ts`
 - `src/components/common/SiteSnapMark.tsx`
+- `src/screens/dashboard/DashboardPlaceholderScreen.tsx`
 - `src/screens/onboarding/WelcomeScreen.tsx`
+- `src/screens/purchase/GoLivePurchaseScreen.tsx`
 - `src/screens/preview/PreviewPlaceholderScreen.tsx`
 - `src/screens/preview/WebsitePreviewScreen.tsx`
+- `src/types/navigation.ts`
 - `src/types/onboarding.ts`
 - `docs/phase-log.md`
 - `docs/session-handoff.md`
 
 Still to build in Phase 2:
 
-- Add a placeholder `Go Live` / purchase screen after the preview CTA
-- Keep purchase mocked for now, but design around future Apple/Google in-app purchase
-- Add the post-purchase/dashboard concept later: AI edit box plus domain setup cards
+- Run a full Expo Go walkthrough of the complete mock funnel and collect weak spots across onboarding, review, preview, purchase, and dashboard
+- Polish any issues found during the walkthrough, especially keyboard behavior, safe-area spacing, and shorter-phone scroll behavior
+- Keep purchase mocked for now, but preserve the purchase screen shape for future Apple/Google in-app purchase
 - Define a normalized website generation input object before backend/Anthropic work
 - Add any remaining local validation and polish needed before moving into the structured data model in Phase 3
 - Keep all onboarding data local only until Phase 3 and later backend phases are approved

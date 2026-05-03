@@ -6,6 +6,7 @@ import { OnboardingAnswers } from "../../types/onboarding";
 type WebsitePreviewScreenProps = {
   onboardingData?: OnboardingAnswers;
   onEditAnswers?: () => void;
+  onGoLive?: () => void;
 };
 
 type ChecklistItem = {
@@ -77,7 +78,7 @@ function slugify(name: string): string {
     .slice(0, 32);
 }
 
-export function WebsitePreviewScreen({ onboardingData, onEditAnswers }: WebsitePreviewScreenProps) {
+export function WebsitePreviewScreen({ onboardingData, onEditAnswers, onGoLive }: WebsitePreviewScreenProps) {
   const screenProfile = useDeviceScreenProfile();
   const answers = onboardingData ?? {};
 
@@ -117,10 +118,9 @@ export function WebsitePreviewScreen({ onboardingData, onEditAnswers }: WebsiteP
   };
 
   const handleGoLive = () => {
-    Alert.alert(
-      "Publishing Plans Coming Next",
-      "This will connect to Apple and Google in-app purchases once plans are configured."
-    );
+    if (onGoLive) {
+      onGoLive();
+    }
   };
 
   return (

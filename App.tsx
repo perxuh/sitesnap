@@ -10,6 +10,7 @@ import {
 } from "./src/lib/storage/onboardingPersistence";
 import { DashboardPlaceholderScreen } from "./src/screens/dashboard/DashboardPlaceholderScreen";
 import { WelcomeScreen } from "./src/screens/onboarding/WelcomeScreen";
+import { GoLivePurchaseScreen } from "./src/screens/purchase/GoLivePurchaseScreen";
 import { WebsitePreviewScreen } from "./src/screens/preview/WebsitePreviewScreen";
 import { AppScreen } from "./src/types/navigation";
 import {
@@ -134,7 +135,7 @@ export default function App() {
           backgroundColor="transparent"
           barStyle="light-content"
         />
-        <View style={[styles.app, currentScreen !== "dashboard" && styles.fullscreenApp]}>
+        <View style={[styles.app, styles.fullscreenApp]}>
           <View style={styles.content}>
             {currentScreen === "welcome" && (
               <WelcomeScreen
@@ -151,10 +152,22 @@ export default function App() {
               <WebsitePreviewScreen
                 onboardingData={onboardingAnswers}
                 onEditAnswers={returnToOnboardingReview}
+                onGoLive={() => setCurrentScreen("purchase")}
+              />
+            )}
+            {currentScreen === "purchase" && (
+              <GoLivePurchaseScreen
+                answers={onboardingAnswers}
+                onBack={() => setCurrentScreen("preview")}
+                onPurchaseComplete={() => setCurrentScreen("dashboard")}
               />
             )}
             {currentScreen === "dashboard" && (
-              <DashboardPlaceholderScreen onBack={() => setCurrentScreen("preview")} />
+              <DashboardPlaceholderScreen
+                onBack={() => setCurrentScreen("preview")}
+                answers={onboardingAnswers}
+                onEditAnswers={returnToOnboardingReview}
+              />
             )}
           </View>
         </View>

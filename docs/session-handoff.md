@@ -34,8 +34,9 @@ Approval status:
 
 - Phase 1 is complete.
 - Phase 2 has started.
-- Phase 2 now includes the redesigned onboarding experience, local progress persistence, review/edit loop, industry-specific service choices, preview handoff, real image picking for logo/job photos, and a conversion-oriented mock preview screen.
-- Phase 2 is still not complete because the data is still device-local only, there is no backend, and the preview is still a mock representation rather than a real generated website.
+- Phase 2 now includes the redesigned onboarding experience, local progress persistence, review/edit loop, industry-specific service choices, preview handoff, real image picking for logo/job photos, a conversion-oriented mock preview screen, and a mocked `Go Live` purchase screen.
+- Phase 2 is still not complete because the post-purchase dashboard is still fully mocked/local, the website generation brief is not normalized yet, and the preview is still a mock representation rather than a real generated website.
+- Device-local storage only is still intentional at this phase. Backend and real AI work are later roadmap phases, not missing Phase 2 requirements.
 
 ## What Was Built In Phase 1
 
@@ -98,6 +99,7 @@ Approval status:
 - `src/components/dashboard`
 - `src/screens/onboarding`
 - `src/screens/preview`
+- `src/screens/purchase`
 - `src/screens/dashboard`
 - `src/screens/settings`
 - `src/data/industries`
@@ -133,17 +135,32 @@ Approval status:
 - The preview route now renders `src/screens/preview/WebsitePreviewScreen.tsx` instead of the older placeholder summary screen.
 - The preview screen shows a compact mock browser/website card, a temporary `*.sitesnap.com` domain, three dynamic setup confirmation boxes, a `Go Live` CTA, and an `Edit Answers` action.
 - `Edit Answers` on the preview screen returns to the onboarding review/edit screen with the existing answers instead of restarting from the beginning.
-- `Go Live` is currently a placeholder alert. Future work should route to a purchase/publishing screen and eventually Apple/Google in-app purchase.
-- The dashboard placeholder still exists but is not the main next step from preview anymore.
+- `Go Live` now routes to `src/screens/purchase/GoLivePurchaseScreen.tsx` instead of showing a placeholder alert.
+- The purchase screen is still mocked, but is structured around future Apple/Google in-app purchase requirements: plan name, monthly price, included services, renewal/cancel copy, restore purchase, and Terms/Privacy placeholders.
+- The purchase screen personalizes the launch headline and temporary SiteSnap domain from onboarding answers, emphasizes instant website access, automatic temporary domain setup, contact-form setup, and AI Editor access, then simulates activation before calling `onPurchaseComplete`.
+- Mock purchase completion now routes to a tabbed post-purchase dashboard in `src/screens/dashboard/DashboardPlaceholderScreen.tsx`.
+- The dashboard has four swipeable/tappable tabs: `AI EDITOR`, `DOMAIN`, `CONTACT`, and `SETTINGS`.
+- `AI EDITOR` shows a compact live-site preview, prompt chips, a local edit composer, a mocked draft response state, and a disabled future `Publish Edit` action.
+- `DOMAIN` shows the active temporary SiteSnap domain, a mocked custom-domain availability check/reserve flow, and a connect-existing-domain placeholder.
+- `CONTACT` shows contact form routing status, editable primary/CC email fields, local notification toggles, a mocked save confirmation, and an email preview card.
+- `SETTINGS` shows live website status, business profile summary, content asset readiness, launch checklist, and quick actions for editing onboarding answers, previewing the public site, and requesting support.
+- Dashboard tab tapping and swiping both work after fixing the horizontal pager math. Tab presses now jump directly to the selected page to avoid `pagingEnabled` snapping one tab too far.
+- The dashboard remains frontend-only: no real AI edits, domain purchasing, email routing, publishing, analytics, or backend storage yet.
 
 ## Latest Redesign Notes
 
-- Latest synced GitHub commit: `8925997` - `Redesign onboarding UI with full-screen per-step conversational flow`
+- Latest synced GitHub commit: `b075d47` - `Improve onboarding persistence and preview flow`
 - The redesign was concentrated mostly in `src/screens/onboarding/WelcomeScreen.tsx`.
 - `App.tsx` was adjusted so the welcome flow can take over the full screen without the previous shell padding.
 - Newer Phase 2 work added `@react-native-async-storage/async-storage`, `react-native-safe-area-context`, and `expo-device`.
 - `expo-haptics` is now installed with the Expo-compatible SDK 54 version.
 - Claude contributed the current compact preview UI in `src/screens/preview/WebsitePreviewScreen.tsx`; Codex wired it into the app shell and adjusted persistence/safe-area behavior around it.
+- `App.tsx` now hydrates persisted onboarding state on launch, saves questionnaire/review/preview progress locally, clears that saved session on full reset, and sends preview edits back into the onboarding review state instead of restarting.
+- `src/lib/storage/onboardingPersistence.ts` now owns the local persistence contract for the onboarding session.
+- `src/types/navigation.ts` now includes the `purchase` route.
+- `WebsitePreviewScreen` accepts an `onGoLive` callback, and `App.tsx` routes preview `Go Live` taps into `GoLivePurchaseScreen`.
+- `DashboardPlaceholderScreen` has been upgraded into the mocked post-purchase dashboard and now accepts onboarding answers plus an optional edit-answers callback.
+- `App.tsx` now passes onboarding answers into the dashboard and uses the full-screen app shell for all current screens so swipe paging can use the device width cleanly.
 
 ## Verification Already Completed
 
@@ -163,6 +180,7 @@ Current result:
 
 - TypeScript is passing.
 - Expo Go testing confirmed local persistence restores the exact saved onboarding question instead of bouncing back to the `Get Started` screen after force close.
+- Expo Go testing confirmed dashboard swiping and tab tapping now land on the correct tabs after the pager fix.
 
 ## Known Weak Spots
 
@@ -172,9 +190,11 @@ Current result:
 - The preview is still a mock/static UI rather than a true generated website layout.
 - Image upload currently supports local picking only; there is no backend upload or storage.
 - The redesigned onboarding screen is now a large, stateful single file and will likely benefit from future extraction into smaller subcomponents once the interaction model stabilizes.
-- `WebsitePreviewScreen.tsx` is also becoming a meaningful UI surface and may need component extraction once purchase/domain flows are added.
-- No real purchase flow yet. `Go Live` is only a placeholder alert and should later route to a purchase/publishing screen.
+- `WebsitePreviewScreen.tsx`, `GoLivePurchaseScreen.tsx`, and `DashboardPlaceholderScreen.tsx` are now meaningful UI surfaces and may need component extraction once the interaction models stabilize.
+- No real purchase flow yet. `Go Live` now opens a mocked purchase screen, but it does not use StoreKit, Google Play Billing, RevenueCat, or any real payment provider.
+- The purchase screen is designed to avoid required scrolling for the primary flow, but it uses an internally scrollable plan area on smaller phones. Device testing should confirm the headline, domain, plan price, core benefits, CTA, restore copy, and Terms/Privacy remain visible and readable.
 - No real domain setup yet. Domain configuration should come after purchase/publishing, with a temporary SiteSnap domain available by default.
+- The full mock funnel is now in place, but it still needs a complete phone walkthrough to collect weak spots across onboarding, preview, purchase, and dashboard.
 - No linting or tests yet.
 
 ## What To Read First In A New Session
@@ -186,15 +206,16 @@ Current result:
 
 ## Recommended Next Step
 
-Continue `Phase 2 - Onboarding Questionnaire` by tightening the preview-to-purchase path and preparing the structured data handoff for later backend/AI generation.
+Continue `Phase 2 - Onboarding Questionnaire` by polishing the post-purchase dashboard and preparing the structured data handoff for later backend/AI generation.
 
 Immediate next build options:
 
-- Add a real placeholder `Go Live` / purchase screen after the preview CTA.
-- Keep IAP mocked for now, but shape the screen around eventual Apple/Google in-app purchase.
-- After mock purchase, introduce the future dashboard concept: AI edit box plus domain setup cards.
+- Run a full Expo Go walkthrough of the complete mock flow: onboarding, review, preview, purchase, and dashboard.
+- Collect weak spots from that walkthrough, especially keyboard behavior, safe-area spacing, shorter-phone vertical scroll behavior, and whether each screen feels clear without backend functionality.
+- Refine dashboard copy/layout after walkthrough testing so each tab feels compact and operational.
+- Keep IAP mocked for now, but preserve the purchase screen shape for eventual Apple/Google in-app purchase.
 - Define and save a normalized `WebsiteGenerationBrief` object later, before Anthropic/backend work.
-- Consider extracting onboarding step config and preview subcomponents as the files continue to grow.
+- Consider extracting onboarding, preview, purchase, and dashboard subcomponents as the files continue to grow.
 
 Phase 2 should focus on:
 
@@ -202,6 +223,14 @@ Phase 2 should focus on:
 - Local asset picking and mock connect states for logo, photos, and reviews
 - Pass questionnaire data into the mock website preview
 - Local state only
+
+## Backend Timing
+
+- The instruction file explicitly says `No backend yet` during the current onboarding phase.
+- `Phase 3` is for the structured website data model, not backend implementation.
+- `Phase 9` is where the AI provider wrapper and real AI integration planning begin.
+- `Phase 10` is where real backend and storage work begin for users, websites, edits, leads, and versioning.
+- Until then, the priority is to make the frontend flow, local state model, screen-to-screen UX, and mock product behavior feel complete enough that backend integration has a stable target.
 
 ## Notes For Future Sessions
 
